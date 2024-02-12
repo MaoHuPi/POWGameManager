@@ -24,9 +24,9 @@ const sceneVar = {};
 sceneVar.global = {};
 
 const popup = new Popup(ctx);
-popup.prompt('請輸入字串：', res => {
-	console.log(res);
-});
+// popup.prompt('請輸入字串：', res => {
+// console.log(res);
+// });
 
 const data = {};
 data.partOfSpeech = {
@@ -165,34 +165,38 @@ function wordExist(word) {
 	return data.partOfSpeech.n.includes(word) || data.partOfSpeech.v.includes(word);
 }
 function wordAdd({ POS }) {
-	let newWord = prompt(`請輸入新字卡的名稱：`);
-	if (wordExist(newWord)) {
-		popup.alert('您輸入的名稱已存在，字卡新增失敗。');
-	} else {
-		data.partOfSpeech[POS].push(newWord);
-		let nLength = data.partOfSpeech.n.length;
-		if (POS == 'v') {
-			data.cases.push(NDArray([nLength, nLength], () => new Case()));
+	popup.prompt(`請輸入新字卡的名稱：`, newWord => {
+		if (newWord === null) return;
+		if (wordExist(newWord)) {
+			popup.alert('您輸入的名稱已存在，字卡新增失敗。');
 		} else {
-			data.cases.forEach(vList => {
-				vList.push(NDArray([nLength], () => new Case()));
-				vList.forEach(sList => sList.push(new Case()));
-			});
+			data.partOfSpeech[POS].push(newWord);
+			let nLength = data.partOfSpeech.n.length;
+			if (POS == 'v') {
+				data.cases.push(NDArray([nLength, nLength], () => new Case()));
+			} else {
+				data.cases.forEach(vList => {
+					vList.push(NDArray([nLength], () => new Case()));
+					vList.forEach(sList => sList.push(new Case()));
+				});
+			}
 		}
-	}
+	});
 }
 function wordRename({ POS, index }) {
 	let oldName = data.partOfSpeech[POS][index]
-	let newName = prompt(`請輸入「${oldName}」的新名稱：`);
-	if (wordExist(newName)) {
-		if (newName == oldName) {
-			popup.alert('新、舊名稱相同。');
+	popup.prompt(`請輸入「${oldName}」的新名稱：`, newName => {
+		if (newName === null) return;
+		if (wordExist(newName)) {
+			if (newName == oldName) {
+				popup.alert('新、舊名稱相同。');
+			} else {
+				popup.alert('您輸入的名稱已存在，名稱更改失敗。');
+			}
 		} else {
-			popup.alert('您輸入的名稱已存在，名稱更改失敗。');
+			data.partOfSpeech[POS].splice(index, 1, newName);
 		}
-	} else {
-		data.partOfSpeech[POS].splice(index, 1, newName);
-	}
+	});
 }
 function wordDelete({ POS, index, listName }) {
 	popup.confirm(`確定刪除「${data.partOfSpeech[POS][index]}」？`, res => {
@@ -578,8 +582,9 @@ class FloatChartNode {
 	static charSize = 30;
 	static charFont = 'Zpix';
 	static padding = 20;
-	constructor({ center, size, draggable }) {
-		this.center = center;
+	constructor({ anchor = [0, 0], relativeAnchorPos = [0.5, 0], size = [100, 100], draggable = true }) {
+		this.anchor = anchor;
+		this.relativeAnchorPos = relativeAnchorPos;
 		this.size = size;
 		this.draggable = draggable;
 	}
@@ -594,7 +599,7 @@ class FloatChartNode {
 				deltaMousePos = deltaMousePos.map(n => n / sceneVar.flowChart.scale);
 				[this.pos[0], this.pos[1]] = [posBeforeDrag[0] + deltaMousePos[0], posBeforeDrag[1] + deltaMousePos[1]];
 				if (mouse.up) {
-					this.center = [this.pos[0] + this.pos[2] / 2, this.pos[1] + this.pos[3] / 2];
+					this.anchor = [this.pos[0] + this.pos[2] * this.relativeAnchorPos[0], this.pos[1] + this.pos[3] * this.relativeAnchorPos[1]];
 					sceneVar.flowChart.draggingNode = undefined;
 					this.calc();
 				}
@@ -627,7 +632,7 @@ class FloatChartNode {
 }
 class StartNode extends FloatChartNode {
 	constructor({ text = '' }) {
-		super({ center: [0, 0], size: undefined, draggable: false });
+		super({ anchor: [0, 0], relativeAnchorPos: [0.5, 0.5], size: undefined, draggable: false });
 		this.text = text;
 		this.calc();
 	}
@@ -636,7 +641,7 @@ class StartNode extends FloatChartNode {
 		this.size = size;
 		this.lines = lines;
 		this.pos = [
-			this.center[0] - this.size[0] / 2, this.center[1] - this.size[1] / 2,
+			this.anchor[0] - this.size[0] / 2, this.anchor[1] - this.size[1] / 2,
 			this.size[0], this.size[1]
 		];
 	}
@@ -659,8 +664,8 @@ class StartNode extends FloatChartNode {
 }
 class DialogNode extends FloatChartNode {
 	static itemGap = 10;
-	constructor({ center = [200, 200], message = '123', words = [], operations = [] }) {
-		super({ center: center, size: undefined, draggable: true });
+	constructor({ anchor = [200, 200], message = '123', words = [], operations = [] }) {
+		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
 		this.message = message;
 		this.words = words;
 		this.operations = operations;
@@ -673,7 +678,7 @@ class DialogNode extends FloatChartNode {
 		this.size = [size[0] + padding * 2, size[1] + padding * 2 + blockPadding * 2 + ((charSize + DialogNode.itemGap) * (this.words.length + this.operations.length + 1 * 2) - DialogNode.itemGap * 2 + blockPadding * 2 * 2)];
 		this.messageLines = lines;
 		this.pos = [
-			this.center[0] - this.size[0] / 2, this.center[1] - this.size[1] / 2,
+			this.anchor[0] - this.size[0] / 2, this.anchor[1],
 			this.size[0], this.size[1]
 		];
 	}
