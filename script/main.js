@@ -24,9 +24,6 @@ const sceneVar = {};
 sceneVar.global = {};
 
 const popup = new Popup(ctx);
-// popup.prompt('請輸入字串：', res => {
-// console.log(res);
-// });
 
 const data = {};
 data.partOfSpeech = {
@@ -117,7 +114,7 @@ const mouse = {
 	deltaX: 0, deltaY: 0, deltaZ: 0, deltaZoom: 0,
 	screenshot: false
 };
-let lastMouseData = JSON.stringify(mouse);
+let lastEventData = JSON.stringify(mouse);
 function updateMousePosition(event) {
 	[mouse.x, mouse.y] = [event.pageX, event.pageY];
 }
@@ -155,6 +152,19 @@ cvs.addEventListener('wheel', event => {
 		mouse.deltaY += event.deltaY;
 		mouse.deltaZ += event.deltaZ;
 	}
+});
+const keyboard = {};
+window.addEventListener('keydown', event => {
+	keyboard[event.key] = true;
+	keyboard.Control = event.ctrlKey;
+	keyboard.Shift = event.shiftKey;
+	keyboard.Alt = event.altKey;
+});
+window.addEventListener('keyup', event => {
+	keyboard[event.key] = false;
+	keyboard.Control = event.ctrlKey;
+	keyboard.Shift = event.shiftKey;
+	keyboard.Alt = event.altKey;
 });
 
 /* draw element method */
@@ -965,10 +975,10 @@ function scene_flowChart() {
 /* main loop */
 function loop() {
 	currentTime = Date.now();
-	let mouseData = JSON.stringify(mouse);
-	if (mouseData != lastMouseData || CW !== cvs.width || CH !== cvs.height) {
+	let eventData = JSON.stringify({ mouse, keyboard });
+	if (eventData != lastEventData || CW !== cvs.width || CH !== cvs.height) {
 		[CW, CH] = [cvs.width, cvs.height];
-		popup.setEvent({ mouse });
+		popup.setEvent({ mouse, keyboard });
 		if (lastScene != currentScene) {
 			sceneChange = true;
 			lastScene = currentScene;
@@ -981,7 +991,7 @@ function loop() {
 		mouse.deltaX = mouse.deltaY = mouse.deltaZ = mouse.deltaZoom = 0;
 		mouse.screenshot = false;
 	}
-	lastMouseData = mouseData;
+	lastEventData = eventData;
 	setTimeout(loop, 30);
 }
 loop();

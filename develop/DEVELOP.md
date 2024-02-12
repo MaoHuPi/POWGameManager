@@ -13,3 +13,8 @@
 
 1. 完成`popup.prompt()`
 2. 將`FloatChartNode`的`center`改成`anchor`，並以`relativeAnchorPos`來控制其與實際繪製位置的相對關係
+
+## 2024/02/12 23:14 [MaoHuPi]
+
+1. `script/main.js`監聽按鈕事件
+2. `popup`支援按鈕決定

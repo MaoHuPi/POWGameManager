@@ -5,6 +5,31 @@ class Popup {
 		border: 'white',
 		text: 'white'
 	};
+	static button = {
+		fgc: Popup.color.text,
+		size: 25,
+		border: Popup.color.border,
+		borderWidth: 3,
+		value: () => true,
+		keys: ['Enter'],
+		hovered: function (argumentDir) {
+			let { ctx, mouse } = argumentDir;
+			glowEffect(ctx, this.border, 20);
+			this.bgc = 'white';
+			this.fgc = 'black';
+			if (mouse.click) {
+				this.res = this.value(argumentDir);
+				this.show = false;
+			}
+		},
+		keyboardListener: function (argumentDir) {
+			let { keyboard } = argumentDir;
+			if (this.keys.filter(key => keyboard[key]).length > 0) {
+				this.res = this.value(argumentDir);
+				this.show = false;
+			}
+		}
+	};
 	constructor(ctx) {
 		this.ctx = ctx;
 		this.show = false;
@@ -28,6 +53,7 @@ class Popup {
 	}
 	showInput() {
 		this.ctx.canvas.ownerDocument.body.appendChild(this.input);
+		this.input.focus();
 	}
 	hideInput() {
 		this.input.remove();
@@ -68,9 +94,13 @@ class Popup {
 			ctx.fillRect(0, 0, CW, CH);
 			this.elements.forEach(element => {
 				ctx.save();
-				element = element({ ctx, CW, CH, mouse, keyboard, popup: this });
+				let argumentDir = { ctx, CW, CH, mouse, keyboard, popup: this };
+				element = element(argumentDir);
 				if (isHover(mouse, element.pos) && element.hovered !== undefined) {
-					element = element.hovered.bind(element)({ ctx, CW, CH, mouse, keyboard, popup: this });
+					element.hovered.bind(element)(argumentDir);
+				}
+				if (element.keyboardListener !== undefined) {
+					element.keyboardListener.bind(element)(argumentDir);
 				}
 				drawBox(ctx, element);
 				ctx.restore();
@@ -97,8 +127,7 @@ class Popup {
 		let charSize = 25;
 		let charFont = 'Zpix';
 		let messagePadding = 20;
-		let { size, lines } = calcSize({ sizeBOCS: [(bg[2] - messagePadding * 2) / charSize, undefined], text: this.argument, charSize, padding: messagePadding, charFont });
-		console.log(size, lines);
+		let { lines } = calcSize({ sizeBOCS: [(bg[2] - messagePadding * 2) / charSize, undefined], text: this.argument, charSize, padding: messagePadding, charFont });
 		this.argument = lines;
 		elements.push(({ CW, CH }) => ({
 			pos: (() => {
@@ -123,26 +152,15 @@ class Popup {
 			padding: messagePadding
 		}));
 		elements.push(({ CW, CH }) => ({
+			...Popup.button,
 			pos: (() => {
 				bg[0] = (CW - bg[2]) / 2;
 				bg[1] = (CH - bg[3]) / 2;
 				return [bg[0], bg[1] + bg[3] - 50, bg[2], 50];
 			})(),
-			fgc: color.text,
 			text: '確定',
-			size: 25,
-			border: color.border,
-			borderWidth: 3,
-			hovered: function ({ ctx, mouse, popup }) {
-				glowEffect(ctx, this.border, 20);
-				this.bgc = 'white';
-				this.fgc = 'black';
-				if (mouse.click) {
-					this.res = true;
-					this.show = false;
-				}
-				return this;
-			}
+			value: () => undefined,
+			keys: ['Enter', 'Escape']
 		}));
 	}
 	confirm(text, callBack = () => { }) {
@@ -184,48 +202,26 @@ class Popup {
 			padding: messagePadding
 		}));
 		elements.push(({ CW, CH }) => ({
+			...Popup.button,
 			pos: (() => {
 				bg[0] = (CW - bg[2]) / 2;
 				bg[1] = (CH - bg[3]) / 2;
 				return [bg[0], bg[1] + bg[3] - 50, bg[2] / 2, 50];
 			})(),
-			fgc: color.text,
 			text: '確認',
-			size: 25,
-			border: color.border,
-			borderWidth: 3,
-			hovered: function ({ ctx, mouse }) {
-				glowEffect(ctx, this.border, 20);
-				this.bgc = 'white';
-				this.fgc = 'black';
-				if (mouse.click) {
-					this.res = true;
-					this.show = false;
-				}
-				return this;
-			}
+			value: () => true,
+			keys: ['Enter']
 		}));
 		elements.push(({ CW, CH }) => ({
+			...Popup.button,
 			pos: (() => {
 				bg[0] = (CW - bg[2]) / 2;
 				bg[1] = (CH - bg[3]) / 2;
 				return [bg[0] + bg[2] / 2, bg[1] + bg[3] - 50, bg[2] / 2, 50];
 			})(),
-			fgc: color.text,
 			text: '取消',
-			size: 25,
-			border: color.border,
-			borderWidth: 3,
-			hovered: function ({ ctx, mouse }) {
-				glowEffect(ctx, this.border, 20);
-				this.bgc = 'white';
-				this.fgc = 'black';
-				if (mouse.click) {
-					this.res = false;
-					this.show = false;
-				}
-				return this;
-			}
+			value: () => false,
+			keys: ['Escape']
 		}));
 	}
 	prompt(text, callBack = () => { }) {
@@ -299,48 +295,26 @@ class Popup {
 		});
 		this.showInput();
 		elements.push(({ CW, CH }) => ({
+			...Popup.button,
 			pos: (() => {
 				bg[0] = (CW - bg[2]) / 2;
 				bg[1] = (CH - bg[3]) / 2;
 				return [bg[0], bg[1] + bg[3] - 50, bg[2] / 2, 50];
 			})(),
-			fgc: color.text,
 			text: '確認',
-			size: 25,
-			border: color.border,
-			borderWidth: 3,
-			hovered: function ({ ctx, mouse, popup }) {
-				glowEffect(ctx, this.border, 20);
-				this.bgc = 'white';
-				this.fgc = 'black';
-				if (mouse.click) {
-					this.res = popup.input.value;
-					this.show = false;
-				}
-				return this;
-			}
+			value: ({ popup }) => popup.input.value,
+			keys: ['Enter']
 		}));
 		elements.push(({ CW, CH }) => ({
+			...Popup.button,
 			pos: (() => {
 				bg[0] = (CW - bg[2]) / 2;
 				bg[1] = (CH - bg[3]) / 2;
 				return [bg[0] + bg[2] / 2, bg[1] + bg[3] - 50, bg[2] / 2, 50];
 			})(),
-			fgc: color.text,
 			text: '取消',
-			size: 25,
-			border: color.border,
-			borderWidth: 3,
-			hovered: function ({ ctx, mouse }) {
-				glowEffect(ctx, this.border, 20);
-				this.bgc = 'white';
-				this.fgc = 'black';
-				if (mouse.click) {
-					this.res = null;
-					this.show = false;
-				}
-				return this;
-			}
+			value: () => null,
+			keys: ['Escape']
 		}));
 	}
 	search(list, callBack = () => { }) {
