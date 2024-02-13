@@ -31,3 +31,6 @@
 8. `FlowChart`節點連接
 9. `FlowChart`與簡單物件之轉換
 10. 刪除`Dialog`、`Circumstance`、`Case`等沒有用到的類別
+
+## 2024/02/13 22:55 [MaoHuPi]
+1. 側邊欄「圖卡背包」

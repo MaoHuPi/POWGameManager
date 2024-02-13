@@ -1,3 +1,25 @@
+/* load metarial */
+function loadMaterial(url, _constructor, eventName = 'onload') {
+	return new Promise(resolve => {
+		let element = new _constructor();
+		element[eventName] = () => {
+			resolve(element);
+		};
+		element.src = url;
+	});
+}
+const imageCatch = {};
+async function getImage(url) {
+	if (url in imageCatch) {
+		return imageCatch[url];
+	} else {
+		let image = await loadMaterial(url, Image);
+		imageCatch[url] = image;
+		return (image);
+	}
+}
+
+/* detect and draw things */
 function isHover(mouse, [x, y, w, h]) {
 	return mouse.x > x && mouse.y > y && mouse.x < x + w && mouse.y < y + h;
 }

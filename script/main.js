@@ -8,7 +8,7 @@ const tempCvs = {}, tempCtx = {};
 	tempCtx[key] = tempCvs[key].getContext('2d');
 	[tempCvs[key].width, tempCvs[key].height] = [window.innerWidth, window.innerHeight];
 });
-Object.entries({ 'chart': 'gridValue', 'shapeDragging': 'gridTitle' }).forEach(KVPair => {
+Object.entries({ 'chart': 'gridValue', 'nodeDragging': 'gridTitle' }).forEach(KVPair => {
 	tempCvs[KVPair[0]] = tempCvs[KVPair[1]];
 	tempCtx[KVPair[0]] = tempCtx[KVPair[1]];
 });
@@ -32,6 +32,13 @@ data.partOfSpeech = {
 	v: ['走向', '檢查', '打開']
 };
 class FlowChart {
+	static exportEmpty() {
+		return {
+			start: undefined,
+			dialog: {},
+			circumstance: {}
+		}
+	}
 	constructor({
 		title = 'Title',
 		start = undefined,
@@ -41,7 +48,7 @@ class FlowChart {
 		this.startNode = new StartNode({ text: title, then: start });
 		let id2nodeDataList = Object.fromEntries([...Object.entries(dialog), ...Object.entries(circumstance)]);
 		function id2Node(nodeData) {
-			for (let key of nodeData) {
+			for (let key in nodeData) {
 				if (Number.isInteger(nodeData[key])) {
 					nodeData[key] = id2nodeDataList[nodeData[key]];
 				}
@@ -56,23 +63,27 @@ class FlowChart {
 		function node2Id(node) {
 			let nodeId = node2idList.get(node);
 			let nodeData = node.export();
-			for (let key of nodeData) {
+			for (let key in nodeData) {
 				if (nodeData[key] instanceof FlowChartNode) {
 					nodeData[key] = node2idList.get(nodeData[key]);
 				}
 			}
 			return [nodeId, nodeData];
 		}
-		return new Case({
+		return {
 			start: this.startNode.export().then,
 			dialog: Object.fromEntries(this.dialogNodeList.map(node2Id)),
 			circumstance: Object.fromEntries(this.circumstanceNodeList.map(node2Id))
-		});
+		};
 	}
 	draw({ chart }) {
-		let nodeList = [this.startNode, ...this.dialogNodeList, ...this.circumstanceNodeList]
+		let nodeList = [this.startNode, ...this.dialogNodeList, ...this.circumstanceNodeList];
 		sceneVar.flowChart.connections = [];
 		sceneVar.flowChart.nodesDots = new Map();
+
+		tempCtx.chart.clearRect(0, 0, CW, CH);
+		tempCtx.nodeDragging.clearRect(0, 0, CW, CH);
+
 		for (let i = 0; i < nodeList.length; i++) {
 			let node = nodeList[i];
 			node.draw(tempCtx.chart, chart);
@@ -81,6 +92,7 @@ class FlowChart {
 		for (let connection of sceneVar.flowChart.connections) {
 			let dot1 = sceneVar.flowChart.nodesDots.get(connection[0].node)[connection[0].dotIndex],
 				dot2 = sceneVar.flowChart.nodesDots.get(connection[1].node)[connection[1].dotIndex];
+			// 載入 => 編輯 => 退出 => 載入(出錯)
 			tempCtx.chart.beginPath();
 			tempCtx.chart.moveTo(...dot1);
 			tempCtx.chart.lineTo(...dot2);
@@ -92,8 +104,9 @@ class FlowChart {
 			tempCtx.chart.lineTo(mouse.x, mouse.y);
 			tempCtx.chart.stroke();
 		}
+
 		ctx.drawImage(tempCvs.chart, ...chart, ...chart);
-		ctx.drawImage(tempCvs.shapeDragging, 0, 0);
+		ctx.drawImage(tempCvs.nodeDragging, 0, 0);
 	}
 }
 function NDArray(lengthList, initValueFunc) {
@@ -105,7 +118,7 @@ function NDArray(lengthList, initValueFunc) {
 		}
 	});
 }
-data.cases = NDArray([data.partOfSpeech.v.length, data.partOfSpeech.n.length, data.partOfSpeech.n.length], () => new Case());
+data.cases = NDArray([data.partOfSpeech.v.length, data.partOfSpeech.n.length, data.partOfSpeech.n.length], FlowChart.exportEmpty);
 
 const color = {
 	buttonHover: 'white',
@@ -640,7 +653,7 @@ class FlowChartNode {
 		}
 	}
 	draw() { }
-	drawTab({ screenPos, name }) {
+	drawTab(ctx, screenPos, name) {
 		drawBox(ctx, {
 			pos: this.getTabScreenPos(screenPos),
 			bgc: 'white',
@@ -671,7 +684,7 @@ class FlowChartNode {
 			[screenPos[0] - distance/*                */, center[1]/*                              */]
 		];
 	}
-	drawDots(dotsScreenPos, activeDotsIndex) {
+	drawDots(ctx, dotsScreenPos, activeDotsIndex) {
 		let scale = sceneVar.flowChart.scale;
 		let distance = 20 * scale;
 		for (let i of activeDotsIndex) {
@@ -734,10 +747,10 @@ class StartNode extends FlowChartNode {
 			border: 'white',
 			borderWidth: 5 * sceneVar.flowChart.scale
 		});
-		this.drawTab({ screenPos: pos, name: '起始' });
+		this.drawTab(ctx, pos, '起始');
 		// this.update(chart);
 		let dotsPos = this.getDotsScreenPos(pos);
-		this.drawDots(dotsPos, [2]);
+		this.drawDots(ctx, dotsPos, [2]);
 		if (this.then) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 2 }, { node: this.then, dotIndex: 0 }]);
 		sceneVar.flowChart.nodesDots.set(this, dotsPos);
 	}
@@ -786,7 +799,7 @@ class CircumstanceNode extends FlowChartNode {
 			border: 'white',
 			borderWidth: 5 * scale
 		});
-		this.drawTab({ screenPos: pos, name: '判斷' });
+		this.drawTab(ctx, pos, '判斷');
 		let conditionalStatementsPos = [pos[0] + padding, pos[1] + padding, pos[2] - padding * 2, (charSize + itemGap) * (this.conditionalStatements.length + 1) - itemGap + blockPadding * 2];
 		drawBox(ctx, {
 			pos: conditionalStatementsPos,
@@ -829,7 +842,7 @@ class CircumstanceNode extends FlowChartNode {
 			drawBox(ctx, { ...option, bgc: undefined });
 		}
 		let dotsPos = this.getDotsScreenPos(pos);
-		this.drawDots(dotsPos, [0, 1, 3]);
+		this.drawDots(ctx, dotsPos, [0, 1, 3]);
 		if (this.ifTrue) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 1 }, { node: this.ifTrue, dotIndex: 0 }]);
 		if (this.ifFalse) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 3 }, { node: this.ifFalse, dotIndex: 0 }]);
 		sceneVar.flowChart.nodesDots.set(this, dotsPos);
@@ -896,7 +909,7 @@ class DialogNode extends FlowChartNode {
 			border: 'white',
 			borderWidth: 5 * sceneVar.flowChart.scale
 		});
-		this.drawTab({ screenPos: pos, name: '對話' });
+		this.drawTab(ctx, pos, '對話');
 		let imagePos = [pos[0] + padding, pos[1] + padding, pos[2] - padding * 2, (pos[2] - padding * 2) / 1920 * 1080];
 		let imageBoxText = '';
 		if (this.image in imageDict) {
@@ -1030,7 +1043,7 @@ class DialogNode extends FlowChartNode {
 			drawBox(ctx, { ...option, bgc: undefined });
 		}
 		let dotsPos = this.getDotsScreenPos(pos);
-		this.drawDots(dotsPos, [0]);
+		this.drawDots(ctx, dotsPos, [0]);
 		sceneVar.flowChart.nodesDots.set(this, dotsPos);
 		if (reCalc) {
 			this.calc();
@@ -1039,7 +1052,7 @@ class DialogNode extends FlowChartNode {
 		}
 	}
 }
-function scene_flowChart() {
+async function scene_flowChart() {
 	/* init */
 	if (!('flowChart' in sceneVar)) {
 		sceneVar.flowChart = {};
@@ -1088,39 +1101,6 @@ function scene_flowChart() {
 		sceneVar.flowChart.chartX -= mouse.deltaX / 2;
 		sceneVar.flowChart.chartY -= mouse.deltaY / 2;
 	}
-
-	tempCtx.chart.clearRect(0, 0, CW, CH);
-	tempCtx.shapeDragging.clearRect(0, 0, CW, CH);
-	let chartHovered = isHover(mouse, chart);
-
-	sceneVar.flowChart.flowChart.draw({ chart });
-	let backButton = [chart[0] + 20, chart[1] + 20, 50, 50];
-	ctx.save();
-	if (isHover(mouse, backButton)) {
-		glowEffect(ctx, 'white', 2);
-		if (mouse.click) {
-			let cellEditing = sceneVar.sheet.cellEditing;
-			data.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
-			currentScene = scene_sheet;
-		}
-	}
-	drawBox(ctx, {
-		pos: backButton,
-		bgc: color.buttonBgc,
-		fgc: 'white',
-		text: '<-',
-		size: 30,
-		border: 'gray',
-		borderWidth: 2
-	});
-	ctx.restore();
-	drawBox(ctx, {
-		pos: [chart[0] + (chart[2] - chart[2] / 2) / 2, backButton[1], chart[2] / 2, backButton[3]],
-		bgc: color.buttonBgc,
-		fgc: 'white',
-		text: sceneVar.flowChart.title,
-		size: 30,
-	});
 
 	drawBox(ctx, {
 		pos: aside,
@@ -1171,6 +1151,80 @@ function scene_flowChart() {
 			border: 'white',
 			borderWidth: 1
 		});
+		for (let option of [
+			{
+				pos: [list[0], list[1], list[2], list[3] / 3],
+				text: '判斷節點',
+				bgiCut: [0, 0, 16, 16],
+				mouseListener: {
+					type: 'down',
+					func: () => {
+						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new CircumstanceNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						sceneVar.flowChart.draggingNode = node;
+						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
+						sceneVar.flowChart.flowChart.circumstanceNodeList.push(node);
+					}
+				}
+			},
+			{
+				pos: [list[0], list[1] + list[3] / 3, list[2], list[3] / 3],
+				text: '對話節點',
+				bgiCut: [16, 0, 16, 16],
+				mouseListener: {
+					type: 'down',
+					func: () => {
+						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new DialogNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						sceneVar.flowChart.draggingNode = node;
+						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
+						sceneVar.flowChart.flowChart.dialogNodeList.push(node);
+					}
+				}
+			},
+			{
+				pos: [list[0], list[1] + list[3] / 3 * 2, list[2], list[3] / 3],
+				text: '節點刪除',
+				bgiCut: [16 * 2, 0, 16, 16],
+				mouseListener: {
+					type: 'up',
+					func: () => {
+						if (sceneVar.flowChart.draggingNode) {
+							[sceneVar.flowChart.flowChart.circumstanceNodeList, sceneVar.flowChart.flowChart.dialogNodeList].forEach(nodeList => {
+								if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
+									nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
+								}
+							});
+						}
+					}
+				}
+			}
+		]) {
+			ctx.save();
+			let bgiPos = [0, 0, 0, 0];
+			bgiPos[2] = bgiPos[3] = Math.min(option.pos[2], option.pos[3]) * 0.8;
+			bgiPos[0] = option.pos[0] + (option.pos[2] - bgiPos[2]) / 2;
+			bgiPos[1] = option.pos[1] + (option.pos[3] - bgiPos[3]) / 2;
+			ctx.globalAlpha = 0.2;
+			ctx.imageSmoothingEnabled = false;
+			if (isHover(mouse, option.pos)) {
+				glowEffect(ctx, 'white', 20);
+				if (option.mouseListener && mouse[option.mouseListener.type]) {
+					option.mouseListener.func();
+				}
+			} else {
+				glowEffect(ctx, 'white', 0);
+			}
+			ctx.drawImage(await getImage('image/backpackItem.png'), ...option.bgiCut, ...bgiPos);
+			ctx.globalAlpha = 1;
+			option = {
+				...option,
+				fgc: 'white',
+				size: 30
+			}
+			drawBox(ctx, option);
+			ctx.restore();
+		}
 	} else if (sceneVar.flowChart.asidePage == 1) {
 		let list = [aside[0] + asidePadding, aside[1] + pageButtonHeight + asidePadding, aside[2] - asidePadding * 2, (aside[3] - pageButtonHeight) - asidePadding * 2];
 		drawBox(ctx, {
@@ -1180,6 +1234,35 @@ function scene_flowChart() {
 			borderWidth: 1
 		});
 	}
+
+	sceneVar.flowChart.flowChart.draw({ chart });
+	let backButton = [chart[0] + 20, chart[1] + 20, 50, 50];
+	ctx.save();
+	if (isHover(mouse, backButton)) {
+		glowEffect(ctx, 'white', 2);
+		if (mouse.click) {
+			let cellEditing = sceneVar.sheet.cellEditing;
+			data.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+			currentScene = scene_sheet;
+		}
+	}
+	drawBox(ctx, {
+		pos: backButton,
+		bgc: color.buttonBgc,
+		fgc: 'white',
+		text: '<-',
+		size: 30,
+		border: 'gray',
+		borderWidth: 2
+	});
+	ctx.restore();
+	drawBox(ctx, {
+		pos: [chart[0] + (chart[2] - chart[2] / 2) / 2, backButton[1], chart[2] / 2, backButton[3]],
+		bgc: color.buttonBgc,
+		fgc: 'white',
+		text: sceneVar.flowChart.title,
+		size: 30,
+	});
 
 	drawBox(ctx, {
 		pos: header,
@@ -1203,7 +1286,7 @@ function scene_flowChart() {
 }
 
 /* main loop */
-function loop() {
+async function loop() {
 	currentTime = Date.now();
 	let eventData = JSON.stringify({ mouse, keyboard });
 	if (eventData != lastEventData || CW !== cvs.width || CH !== cvs.height) {
@@ -1213,7 +1296,7 @@ function loop() {
 			sceneChange = true;
 			lastScene = currentScene;
 		}
-		currentScene();
+		await currentScene();
 		sceneChange = false;
 		// console.log('rendered!');
 		popup.setEvent({ mouse, keyboard }, false);

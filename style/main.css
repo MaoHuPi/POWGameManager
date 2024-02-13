@@ -11,3 +11,6 @@ html, body, #viewCanvas {
 	background-color: black;
 	overflow: hidden;
 }
+#viewCanvas {
+	image-rendering: pixelated;
+}
