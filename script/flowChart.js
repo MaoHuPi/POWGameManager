@@ -321,10 +321,11 @@ class DialogNode extends FlowChartNode {
 		this.drawTab(ctx, pos, '對話');
 		let imagePos = [pos[0] + padding, pos[1] + padding, pos[2] - padding * 2, (pos[2] - padding * 2) / 1920 * 1080];
 		let imageBoxText = '';
-		if (this.image in imageDict) {
-			ctx.drawImage(imageDict[this.image], imagePos);
+		if (this.image in project.imageDataDict) {
+			ctx.drawImage(project.imageDataDict[this.image].element, ...imagePos);
 		} else {
 			imageBoxText = '選擇背景圖片';
+			this.image = '';
 		}
 		drawBox(ctx, {
 			pos: imagePos,
@@ -338,7 +339,7 @@ class DialogNode extends FlowChartNode {
 		if (isHover(mouse, imagePos)) {
 			mouse.down = false;
 			if (mouse.click) {
-				popup.search({ dict: imageDict, defaultValue: this.image }, selected => {
+				popup.search({ dict: project.imageDataDict, defaultValue: this.image, type: 'imageData' }, selected => {
 					if (selected !== null) {
 						this.image = selected.key;
 						this.calc();
@@ -388,7 +389,7 @@ class DialogNode extends FlowChartNode {
 				if (hovered && mouse.click) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
-					popup.search({ list: [...data.partOfSpeech.n, ...data.partOfSpeech.v], type: 'string' }, selected => {
+					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
 						if (selected !== null) {
 							this.words.push(selected.value);
 							this.calc();
@@ -397,7 +398,7 @@ class DialogNode extends FlowChartNode {
 				}
 			} else {
 				option.text = this.words[i];
-				option.bgc = data.partOfSpeech.v.includes(this.words[i]) ? color.wordBoxV : color.wordBoxSAndO;
+				option.bgc = project.partOfSpeech.v.includes(this.words[i]) ? color.wordBoxV : color.wordBoxSAndO;
 				if (hovered && mouse.contextMenu) {
 					sceneVar.flowChart.draggingNode = undefined;
 					this.words.splice(i, 1);

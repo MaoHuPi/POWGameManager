@@ -4,6 +4,26 @@
  * modified from MaoHuPi - textEditor
  */
 let developerMod = false;
+
+let pickerTitle = 'POW Game Manager Project',
+    // pickerAcceptMime = 'application/zip',
+    pickerAcceptMime = 'application/pow',
+    // pickerAcceptExtension = ['.pow', '.zip'];
+    pickerAcceptExtension = ['.pow'];
+let pickerOptions = {
+    excludeAcceptAllOption: true, 
+    id: 'POWGameManagerProject',
+    types: [
+        {
+            description: pickerTitle,
+            accept: {
+                [pickerAcceptMime]: pickerAcceptExtension
+            }
+        }
+    ],
+    // startIn: 'documents'
+};
+
 const dropMask = document.querySelector('#viewCanvas');
 
 function cancelEvent(event) {
@@ -57,7 +77,7 @@ async function saveFile(dataBuffer, fileName = 'project.pow') {
     let errorFlag = false;
     try {
         if (!window.fileEntry && 'showSaveFilePicker' in window) {
-            window.fileEntry = await window.showSaveFilePicker();
+            window.fileEntry = await window.showSaveFilePicker({ ...pickerOptions, suggestedName: fileName });
             updateLocalFile(window.fileEntry, dataBuffer);
         } else if (window.fileEntry) {
             updateLocalFile(window.fileEntry, dataBuffer);
@@ -80,22 +100,8 @@ async function saveFile(dataBuffer, fileName = 'project.pow') {
     alert('File Saved!');
 }
 async function openFile() {
-    let title = 'POW Game Manager Project',
-        acceptMime = 'application/zip',
-        acceptExtension = ['.pow', '.zip'];
     if (window.showOpenFilePicker) {
-        let options = {
-            types: [
-                {
-                    description: title,
-                    accept: {
-                        [acceptMime]: acceptExtension
-                    }
-                }
-            ],
-            // startIn: 'documents'
-        };
-        let [entry] = await showOpenFilePicker(options);
+        let [entry] = await showOpenFilePicker(pickerOptions);
         if (entry) {
             let file = await entry.getFile();
             window.fileEntry = entry;
@@ -104,8 +110,8 @@ async function openFile() {
     } else {
         let input = document.createElement('input');
         input.type = 'file';
-        input.setAttribute('description', title);
-        input.setAttribute('accept', acceptMime);
+        input.setAttribute('description', pickerTitle);
+        input.setAttribute('accept', pickerAcceptExtension);
         input.onchange = async (event) => {
             window.fileEntry = undefined;
 
@@ -136,7 +142,7 @@ async function loadFile(arrayBufferOrFile, type = 'arrayBuffer', fileName = 'pro
     //         reader.readAsArrayBuffer(file);
     //     }
     // } else if (type == 'arrayBuffer') {
-        importProject(arrayBufferOrFile);
+    importProject(arrayBufferOrFile);
     // }
 }
 async function updateLocalFile(entry, content) {

@@ -150,7 +150,8 @@ function drawList({
 	list = [0, 0, 0, 0],
 	getSetScrollY = value => { let v; return value ? (v = value) : v },
 	itemList = [],
-	itemBgc = 'gray', 
+	itemBgc = 'gray',
+	itemDecoration = undefined,
 	itemTextFormat = item => item,
 	itemClickListener = () => { },
 	itemSelected = () => { },
@@ -180,9 +181,14 @@ function drawList({
 				itemClickListener({ index: i, item: itemList[i] });
 			}
 		}
+		if (itemDecoration) {
+			itemDecoration({ cvs: targetCvs, ctx: targetCtx, index: i, ...option });
+		}
 		if (itemSelected({ index: i, item: itemList[i] })) {
-			option.fgc = 'black';
-			drawBox(targetCtx, option);
+			targetCtx.globalAlpha = 0.9;
+			drawBox(targetCtx, { ...option, text: '' });
+			targetCtx.globalAlpha = 1;
+			drawBox(targetCtx, { ...option, bgc: undefined, fgc: 'black' });
 		} else {
 			targetCtx.globalAlpha = 0.5;
 			drawBox(targetCtx, { ...option, text: '' });

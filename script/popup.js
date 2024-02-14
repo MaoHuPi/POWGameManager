@@ -351,7 +351,6 @@ class Popup {
 		let messagePadding = 20;
 		let inputHeight = charSize + messagePadding * 2;
 		let bg = [0, 0, 750, inputHeight + messagePadding * 2];
-		let { lines } = calcSize({ sizeBOCS: [(bg[2] - messagePadding * 2) / charSize, undefined], text: this.argument, charSize, padding: messagePadding, charFont });
 		elements.push(({ CW, CH }) => {
 			bg[0] = (CW - bg[2]) / 2;
 			bg[1] = (CH - bg[3]) / 2;
@@ -425,8 +424,17 @@ class Popup {
 						this.input.value = this.argument.selected[0];
 					}
 				}
-				optionOption.padding = (optionOption.pos[3] - optionOption.size) / 2
+				optionOption.padding = (optionOption.pos[3] - optionOption.size) / 2;
 				drawBox(tempCtx, optionOption);
+				if (type == 'imageData') {
+					let pos = optionOption.pos;
+					let image = filteredList[i][1].element;
+					let drawWidth = pos[3] / image.height * image.width;
+					let imagePos = [pos[0] + pos[2] - drawWidth, pos[1], drawWidth, pos[3]];
+					tempCtx.fillStyle = 'gray';
+					tempCtx.fillRect(...imagePos);
+					tempCtx.drawImage(filteredList[i][1].element, ...imagePos);
+				}
 				tempCtx.restore();
 			}
 			return {

@@ -1,6 +1,7 @@
 /* global varible declare and initialize */
 const cvs = document.querySelector('#viewCanvas'),
 	ctx = cvs.getContext('2d');
+const cvsDataUrlHead = cvs.toDataURL('image/png').split(',')[0] + ',';
 [cvs.width, cvs.height] = [window.innerWidth, window.innerHeight];
 const tempCvs = {}, tempCtx = {};
 ['gridTitle', 'gridValue', 'nounList', 'verbList'].forEach(key => {
@@ -25,7 +26,6 @@ sceneVar.global = {};
 
 const popup = new Popup(ctx);
 
-const imageDict = {};
 class Project {
 	constructor({
 		partOfSpeech = { n: [], v: [] },
@@ -47,10 +47,20 @@ class Project {
 		let jsonData = JSON.parse(json);
 		let imageDataDict = {};
 		if (zip.folder('image')) {
-			zip.folder('image').forEach(file => {
-				// file.async('');
-				console.log(file);
-			});
+			let fileNameList = zip.file(/image\/.*/);
+			let cvs = document.createElement('canvas'),
+				ctx = cvs.getContext(`2d`);
+			for (let file of fileNameList) {
+				let base64 = await file.async('base64');
+
+				let element = new Image();
+				element.src = `${cvsDataUrlHead}${base64}`;
+				let fileNameWithoutExtension = file.name.split('/').pop().split('.');
+				fileNameWithoutExtension.pop();
+				fileNameWithoutExtension = fileNameWithoutExtension.join('.');
+
+				imageDataDict[fileNameWithoutExtension] = { element, base64 };
+			}
 		}
 		return new Project({ ...jsonData, imageDataDict });;
 	}
@@ -66,30 +76,47 @@ class Project {
 		zip.file('project.json', JSON.stringify(jsonData));
 		let imageDir = zip.folder('image');
 		Object.entries(imageDataDict).forEach(([name, imageData]) => {
-			let imageBuffer;
-			if (imageData.buffer) {
-				buffer = imageBuffer;
+			let imageBase64;
+			if (imageData.base64) {
+				imageBase64 = imageData.base64;
 			} else {
 				[cvs.width, cvs.height] = [imageData.element.width, imageData.element.height];
 				ctx.drawImage(imageData.element, 0, 0);
-				imageBuffer = ctx.getImageData(0, 0, cvs.width, cvs.height).data.buffer;
+				imageBase64 = cvs.toDataURL('image/png').replace(cvsDataUrlHead, '');
 			}
-			imageDir.file(name, imageBuffer);
+			imageDir.file(name + '.png', imageBase64, { base64: true });
 		});
 
 		return zip;
 	}
 }
 let project = new Project();
-// project.partOfSpeech = {
-// 	n: ['我', '門', '電腦', '紙條', '寶箱', '電話', '鍵盤', '手錶', '蠟燭', '屎', '筆', '墨水', '衛生紙'],
-// 	v: ['走向', '檢查', '打開']
-// };
-// project.cases = NDArray([project.partOfSpeech.v.length, project.partOfSpeech.n.length, project.partOfSpeech.n.length], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
+project.partOfSpeech = {
+	n: ['1', '2'], v: ['a']
+};
+project.cases = NDArray([1, 2, 2], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
+(async () => {
+	project.imageDataDict['headerButton'] = { element: await getImage('image/headerButton.png'), buffer: undefined };
+})();
+
+let projectName = 'project.pow';
+async function importProject(file) {
+	let zip = await JSZip.loadAsync(file);
+	project = await Project.fromZip(zip);
+}
+async function exportProject() {
+	let zip = project.toZip();
+	let dataBuffer = await zip.generateAsync({
+		type: 'arrayBuffer',
+	});
+	saveFile(dataBuffer, projectName);
+}
+function changeProjectName(newName) {
+	projectName = newName;
+}
 
 const color = {
 	buttonHover: 'white',
-	// buttonDefault: '#6585ad',
 	buttonDefault: '#b5986a',
 	buttonDisabled: 'gray',
 	buttonBgc: '#00000055',
@@ -268,6 +295,30 @@ async function scene_sheet() {
 		sceneVar.sheet.emptyWarningY = 0;
 	}
 
+	/* warning refresh */
+	let emptyCaseList = [];
+	if (sceneVar.sheet.asidePage == 1 || sceneVar.sheet.emptyWarningSelectedCell !== undefined) {
+		for (let vI = 0; vI < project.cases.length; vI++)
+			for (let sI = 0; sI < project.cases[vI].length; sI++)
+				for (let oI = 0; oI < project.cases[vI][sI].length; oI++) {
+					if (project.cases[vI][sI][oI] && project.cases[vI][sI][oI].start === undefined) {
+						emptyCaseList.push({
+							text: `${project.partOfSpeech.n[sI]} - ${project.partOfSpeech.v[vI]} - ${project.partOfSpeech.n[oI]}`,
+							s: sI, v: vI, o: oI
+						});
+					}
+				}
+		let currentAndLastSelected = [emptyCaseList[sceneVar.sheet.emptyWarningSelected], sceneVar.sheet.emptyWarningSelectedCell];
+		if (
+			!currentAndLastSelected[0] ||
+			!currentAndLastSelected[1] ||
+			currentAndLastSelected[0].text !== currentAndLastSelected[1].text
+		) {
+			sceneVar.sheet.emptyWarningSelected = undefined;
+			sceneVar.sheet.emptyWarningSelectedCell = undefined;
+		}
+	}
+
 	/* draw */
 	drawBox(ctx, {
 		pos: [0, 0, CW, CH],
@@ -303,9 +354,9 @@ async function scene_sheet() {
 		sceneVar.global.goto = false;
 	}
 	if (sceneVar.sheet.gotoEmptyWarningSelected) {
-		s = sceneVar.sheet.emptyWarningSelectedDot.s;
-		v = sceneVar.sheet.emptyWarningSelectedDot.v;
-		o = sceneVar.sheet.emptyWarningSelectedDot.o;
+		s = sceneVar.sheet.emptyWarningSelectedCell.s;
+		v = sceneVar.sheet.emptyWarningSelectedCell.v;
+		o = sceneVar.sheet.emptyWarningSelectedCell.o;
 		sceneVar.sheet.gotoEmptyWarningSelected = false;
 	}
 	if (s !== -1) sceneVar.sheet.gridY -= (sceneVar.sheet.gridY + (cellHeight + cellGap) * s + cellHeight / 2) - (grid[1] + grid[3] / 2);
@@ -406,10 +457,10 @@ async function scene_sheet() {
 					}
 				}
 				if (
-					sceneVar.sheet.emptyWarningSelectedDot &&
-					sceneVar.sheet.vIndex === sceneVar.sheet.emptyWarningSelectedDot.v &&
-					rR - 1 === sceneVar.sheet.emptyWarningSelectedDot.s &&
-					rC - 1 === sceneVar.sheet.emptyWarningSelectedDot.o
+					sceneVar.sheet.emptyWarningSelectedCell &&
+					sceneVar.sheet.vIndex === sceneVar.sheet.emptyWarningSelectedCell.v &&
+					rR - 1 === sceneVar.sheet.emptyWarningSelectedCell.s &&
+					rC - 1 === sceneVar.sheet.emptyWarningSelectedCell.o
 				) {
 					option.border = color.buttonWarning;
 				}
@@ -433,16 +484,11 @@ async function scene_sheet() {
 		pos: aside,
 		bgc: '#1e1e1e'
 	});
-	drawPoliigon(ctx, {
-		points: [[aside[0] + 5 / 2, aside[1]], [aside[0] + 5 / 2, aside[1] + aside[3]]],
-		lineWidth: 2,
-		stroke: 'white'
-	});
 	let pageButtonHeight = 50;
 	[
 		{
 			pos: [aside[0], aside[1], aside[2] / 2, pageButtonHeight],
-			text: '詞卡總攬',
+			text: '詞卡總覽',
 		},
 		{
 			pos: [aside[0] + aside[2] / 2, aside[1], aside[2] / 2, pageButtonHeight],
@@ -450,10 +496,6 @@ async function scene_sheet() {
 		}
 	].map((pageButton, i) => {
 		pageButton.size = 20;
-		pageButton.pos[0] += 5;
-		pageButton.pos[1] += 5;
-		pageButton.pos[2] -= 10;
-		pageButton.pos[3] -= 10;
 		if (i == sceneVar.sheet.asidePage) {
 			pageButton.fgc = 'white';
 			pageButton.bgc = 'transparent';
@@ -556,27 +598,6 @@ async function scene_sheet() {
 			border: 'white',
 			borderWidth: 1
 		});
-		let emptyCaseList = [];
-		for (let vI = 0; vI < project.cases.length; vI++)
-			for (let sI = 0; sI < project.cases[vI].length; sI++)
-				for (let oI = 0; oI < project.cases[vI][sI].length; oI++) {
-					if (project.cases[vI][sI][oI] && project.cases[vI][sI][oI].start === undefined) {
-						emptyCaseList.push({
-							text: `${project.partOfSpeech.n[sI]} - ${project.partOfSpeech.v[vI]} - ${project.partOfSpeech.n[oI]}`,
-							s: sI, v: vI, o: oI
-						});
-					}
-				}
-		// let currentAndLastSelected = [loneDots[sceneVar.flowChart.emptyWarningSelected], sceneVar.flowChart.emptyWarningSelectedDot];
-		// if (
-		// 	!currentAndLastSelected[0] ||
-		// 	!currentAndLastSelected[1] ||
-		// 	currentAndLastSelected[0].node !== currentAndLastSelected[1].node ||
-		// 	currentAndLastSelected[0].dotIndex != currentAndLastSelected[1].dotIndex
-		// ) {
-		// 	sceneVar.flowChart.emptyWarningSelected = undefined;
-		// 	sceneVar.flowChart.emptyWarningSelectedDot = undefined;
-		// }
 		drawList({
 			targetCvs: tempCvs.nounList,
 			targetCtx: tempCtx.nounList,
@@ -587,13 +608,18 @@ async function scene_sheet() {
 			itemTextFormat: ({ item }) => item.text,
 			itemClickListener: ({ index, item }) => {
 				sceneVar.sheet.emptyWarningSelected = index;
-				sceneVar.sheet.emptyWarningSelectedDot = item;
+				sceneVar.sheet.emptyWarningSelectedCell = item;
 				sceneVar.sheet.gotoEmptyWarningSelected = true;
 			},
 			itemSelected: ({ index }) => index === sceneVar.sheet.emptyWarningSelected,
 			listPadding: 10, itemHeight: 30, itemGap: 5,
 		});
 	}
+	drawPoliigon(ctx, {
+		points: [[aside[0] + 5 / 2, aside[1]], [aside[0] + 5 / 2, aside[1] + aside[3]]],
+		lineWidth: 2,
+		stroke: 'white'
+	});
 
 	drawBox(ctx, {
 		pos: header,
@@ -663,21 +689,6 @@ async function scene_sheet() {
 	}
 }
 
-let projectName = 'project.pow';
-async function importProject(file) {
-	let zip = await JSZip.loadAsync(file);
-	project = await Project.fromZip(zip);
-	console.log(project);
-}
-async function exportProject() {
-	let zip = project.toZip();
-	let dataBuffer = await zip.generateAsync({
-		type: 'arrayBuffer',
-	  });
-	saveFile(dataBuffer, projectName);
-}
-function changeProjectName() { }
-
 async function scene_flowChart() {
 	/* init */
 	if (!('flowChart' in sceneVar)) {
@@ -690,6 +701,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.title = '';
 		sceneVar.flowChart.connections = [];
 		sceneVar.flowChart.nodesDots = new Map();
+		sceneVar.flowChart.imageListY = 0;
 		sceneVar.flowChart.emptyWarningY = 0;
 	}
 	if (sceneChange) {
@@ -703,6 +715,22 @@ async function scene_flowChart() {
 			title: sceneVar.flowChart.title,
 			...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
 		});
+	}
+
+	/* warning refresh */
+	let loneDots = [];
+	if (sceneVar.flowChart.asidePage == 2 || sceneVar.flowChart.emptyWarningSelectedDot !== undefined) {
+		loneDots = sceneVar.flowChart.flowChart.getLoneDotsAndUnconnectedNodes().loneDots;
+		let currentAndLastSelected = [loneDots[sceneVar.flowChart.emptyWarningSelected], sceneVar.flowChart.emptyWarningSelectedDot];
+		if (
+			!currentAndLastSelected[0] ||
+			!currentAndLastSelected[1] ||
+			currentAndLastSelected[0].node !== currentAndLastSelected[1].node ||
+			currentAndLastSelected[0].dotIndex != currentAndLastSelected[1].dotIndex
+		) {
+			sceneVar.flowChart.emptyWarningSelected = undefined;
+			sceneVar.flowChart.emptyWarningSelectedDot = undefined;
+		}
 	}
 
 	/* draw */
@@ -733,27 +761,22 @@ async function scene_flowChart() {
 		pos: aside,
 		bgc: '#1e1e1e'
 	});
-	drawPoliigon(ctx, {
-		points: [[aside[0] + 5 / 2, aside[1]], [aside[0] + 5 / 2, aside[1] + aside[3]]],
-		lineWidth: 2,
-		stroke: 'white'
-	});
 	let pageButtonHeight = 50;
 	[
 		{
-			pos: [aside[0], aside[1], aside[2] / 2, pageButtonHeight],
+			pos: [aside[0], aside[1], aside[2] / 3, pageButtonHeight],
 			text: '圖卡背包',
 		},
 		{
-			pos: [aside[0] + aside[2] / 2, aside[1], aside[2] / 2, pageButtonHeight],
+			pos: [aside[0] + aside[2] / 3, aside[1], aside[2] / 3, pageButtonHeight],
+			text: '圖片總覽',
+		},
+		{
+			pos: [aside[0] + aside[2] / 3 * 2, aside[1], aside[2] / 3, pageButtonHeight],
 			text: '空缺提示',
 		}
 	].map((pageButton, i) => {
 		pageButton.size = 20;
-		pageButton.pos[0] += 5;
-		pageButton.pos[1] += 5;
-		pageButton.pos[2] -= 10;
-		pageButton.pos[3] -= 10;
 		if (i == sceneVar.flowChart.asidePage) {
 			pageButton.fgc = 'white';
 			pageButton.bgc = 'transparent';
@@ -767,6 +790,7 @@ async function scene_flowChart() {
 		drawBox(ctx, pageButton);
 	});
 	let asidePadding = 20;
+	let wordHeight = 30, wordGap = 5;
 	if (sceneVar.flowChart.asidePage == 0) {
 		let list = [aside[0] + asidePadding, aside[1] + pageButtonHeight + asidePadding, aside[2] - asidePadding * 2, (aside[3] - pageButtonHeight) - asidePadding * 2];
 		drawBox(ctx, {
@@ -850,6 +874,128 @@ async function scene_flowChart() {
 			ctx.restore();
 		}
 	} else if (sceneVar.flowChart.asidePage == 1) {
+		let list = [aside[0] + asidePadding, aside[1] + pageButtonHeight + asidePadding, aside[2] - asidePadding * 2, (aside[3] - pageButtonHeight) - wordHeight - asidePadding * 3];
+		drawBox(ctx, {
+			pos: list,
+			bgc: color.buttonBgc,
+			border: 'white',
+			borderWidth: 1
+		});
+		let buttonBox = [list[0], list[1] + list[3] + asidePadding, list[2], wordHeight * 2 + wordGap];
+		let buttonWidth = (buttonBox[2] - wordGap * 2) / 3;
+		let buttonList = [
+			{
+				pos: [buttonBox[0], buttonBox[1], buttonWidth, wordHeight], label: '上傳', selectFirst: false,
+				method: () => {
+					let input = document.createElement('input');
+					input.type = 'file';
+					input.multiple = true;
+					input.setAttribute('description', '');
+					input.setAttribute('accept', 'image/png, image/jpeg');
+					input.onchange = async () => {
+						if (input.files && input.files.length > 0) {
+							for (let file of input.files) {
+								let fileNameWithoutExtension = file.name.split('/').pop().split('.');
+								fileNameWithoutExtension.pop();
+								fileNameWithoutExtension = fileNameWithoutExtension.join('.');
+								let oriFileNameWithoutExtension = fileNameWithoutExtension,
+									imageNum = 1;
+								while (fileNameWithoutExtension in project.imageDataDict) {
+									imageNum++;
+									fileNameWithoutExtension = `${oriFileNameWithoutExtension}(${imageNum})`;
+								}
+								let reader = new FileReader();
+								reader.onload = () => {
+									let image = new Image();
+									image.src = reader.result;
+									project.imageDataDict[fileNameWithoutExtension] = { element: image, buffer: undefined };
+								}
+								reader.readAsDataURL(file);
+							}
+						}
+					}
+					input.click();
+				}
+			},
+			{
+				pos: [buttonBox[0] + (buttonWidth + wordGap), buttonBox[1], buttonWidth, wordHeight], label: '改名', selectFirst: true,
+				method: ({ index }) => {
+					let [selectedImageName, selectedImageData] = Object.entries(project.imageDataDict)[index];
+					let oldName = selectedImageName;
+					popup.prompt({ text: `請輸入「${oldName}」的新名稱：` }, newName => {
+						if (newName === null) return;
+						if (newName in project.imageDataDict) {
+							if (newName == oldName) {
+								popup.alert('新、舊名稱相同。');
+							} else {
+								popup.alert('您輸入的名稱已存在，名稱更改失敗。');
+							}
+						} else {
+							project.imageDataDict[newName] = selectedImageData;
+							delete project.imageDataDict[oldName];
+							sceneVar.flowChart.flowChart = new FlowChart({ title: sceneVar.flowChart.title, ...JSON.parse(JSON.stringify(sceneVar.flowChart.flowChart.export()).replaceAll(`"${oldName}"`, `"${newName}"`)) });
+							project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"${oldName}"`, `"${newName}"`));
+						}
+					});
+				}
+			},
+			{
+				pos: [buttonBox[0] + (buttonWidth + wordGap) * 2, buttonBox[1], buttonWidth, wordHeight], label: '刪除', selectFirst: true,
+				method: ({ index }) => {
+					let [selectedImageName, selectedImageData] = Object.entries(project.imageDataDict)[index];
+					popup.confirm(`確定刪除「${selectedImageName}」？`, res => {
+						if (res) {
+							delete project.imageDataDict[selectedImageName];
+							sceneVar.flowChart.imageListSelected = false;
+						}
+					});
+				}
+			}
+		];
+		buttonList.forEach(button => {
+			ctx.save();
+			let option = {
+				pos: button.pos,
+				bgc: color.buttonBgc,
+				fgc: 'white',
+				text: button.label,
+				size: 20,
+				border: 'white',
+				borderWidth: 1
+			};
+			if (isHover(mouse, option.pos)) {
+				glowEffect(ctx, option.border, 10);
+				if (mouse.click) {
+					let selectedImage = sceneVar.flowChart.imageListSelected;
+					if (button.selectFirst && selectedImage === false) {
+						popup.alert(`請先選擇圖片！`);
+					} else {
+						button.method({ index: selectedImage });
+					}
+				}
+			}
+			drawBox(ctx, option);
+			ctx.restore();
+		});
+		let imageList = Object.entries(project.imageDataDict);
+		drawList({
+			targetCvs: tempCvs.nounList,
+			targetCtx: tempCtx.nounList,
+			list: list,
+			getSetScrollY: value => { return value !== undefined ? (sceneVar.flowChart.imageListY = value) : sceneVar.flowChart.imageListY },
+			itemList: imageList,
+			itemBgc: 'white',
+			itemDecoration: ({ ctx, pos, index }) => {
+				ctx.drawImage(imageList[index][1].element, ...pos);
+			},
+			itemTextFormat: ({ item }) => item[0],
+			itemClickListener: ({ index }) => {
+				sceneVar.flowChart.imageListSelected = index;
+			},
+			itemSelected: ({ index }) => index === sceneVar.flowChart.imageListSelected,
+			listPadding: 10, itemHeight: 200, itemGap: 5,
+		});
+	} else if (sceneVar.flowChart.asidePage == 2) {
 		let list = [aside[0] + asidePadding, aside[1] + pageButtonHeight + asidePadding, aside[2] - asidePadding * 2, (aside[3] - pageButtonHeight) - asidePadding * 2];
 		drawBox(ctx, {
 			pos: list,
@@ -857,17 +1003,6 @@ async function scene_flowChart() {
 			border: 'white',
 			borderWidth: 1
 		});
-		let { loneDots } = sceneVar.flowChart.flowChart.getLoneDotsAndUnconnectedNodes();
-		let currentAndLastSelected = [loneDots[sceneVar.flowChart.emptyWarningSelected], sceneVar.flowChart.emptyWarningSelectedDot];
-		if (
-			!currentAndLastSelected[0] ||
-			!currentAndLastSelected[1] ||
-			currentAndLastSelected[0].node !== currentAndLastSelected[1].node ||
-			currentAndLastSelected[0].dotIndex != currentAndLastSelected[1].dotIndex
-		) {
-			sceneVar.flowChart.emptyWarningSelected = undefined;
-			sceneVar.flowChart.emptyWarningSelectedDot = undefined;
-		}
 		drawList({
 			targetCvs: tempCvs.nounList,
 			targetCtx: tempCtx.nounList,
@@ -885,6 +1020,11 @@ async function scene_flowChart() {
 			listPadding: 10, itemHeight: 30, itemGap: 5,
 		});
 	}
+	drawPoliigon(ctx, {
+		points: [[aside[0] + 5 / 2, aside[1]], [aside[0] + 5 / 2, aside[1] + aside[3]]],
+		lineWidth: 2,
+		stroke: 'white'
+	});
 
 	sceneVar.flowChart.flowChart.draw({ ctx, chart });
 	let backButton = [chart[0] + 20, chart[1] + 20, 50, 50];
