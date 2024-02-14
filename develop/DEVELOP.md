@@ -47,3 +47,8 @@
 7. flowChart場景 > 空缺提示
 8. `sheet`的`goto`改成點擊前往，不像原先那樣鎖定3秒
 9. sheet場景 > 空缺提示
+
+## 2024/02/14 18:44 [MaoHuPi]
+
+1. 專案的新增、載入、下載、設定按鈕
+2. 專案載入、下載功能（引入了`package/JSZip/jszip.js`、`script/fileIO.js`）

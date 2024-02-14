@@ -9,8 +9,10 @@
 - [x] flowChart場景 > 空缺提示
 - [ ] flowChart場景 > 空缺提示 > when node connection has loop
 - [x] sheet場景 > 空缺提示
+- [ ] 圖片匯入
+- [ ] 圖片選擇
 - [ ] 字卡屬性
 - [ ] 字卡屬性 -> 可選之變數
 - [ ] flowChart場景 > 判斷節點、對話節點之變數欄位
-- [ ] 檔案匯入/匯出
+- [x] 檔案匯入/匯出
 - [ ] 語言設定與切換

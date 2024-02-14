@@ -26,17 +26,66 @@ sceneVar.global = {};
 const popup = new Popup(ctx);
 
 const imageDict = {};
-const data = {};
-// data.partOfSpeech = {
-// 	n: [],
-// 	v: []
+class Project {
+	constructor({
+		partOfSpeech = { n: [], v: [] },
+		cases = [],
+		imageDataDict = {}
+	} = {}) {
+		this.partOfSpeech = partOfSpeech;
+		this.cases = cases;
+		this.imageDataDict = imageDataDict;
+	}
+	export() {
+		let { partOfSpeech, cases, imageDataDict } = this;
+		return { partOfSpeech, cases, imageDataDict };
+	}
+	static async fromZip(zip) {
+		if (!zip instanceof JSZip) return;
+		if (!zip.file('project.json')) return;
+		let json = await zip.file('project.json').async('string');
+		let jsonData = JSON.parse(json);
+		let imageDataDict = {};
+		if (zip.folder('image')) {
+			zip.folder('image').forEach(file => {
+				// file.async('');
+				console.log(file);
+			});
+		}
+		return new Project({ ...jsonData, imageDataDict });;
+	}
+	toZip() {
+		let jsonData = this.export();
+		let imageDataDict = jsonData.imageDataDict;
+		delete jsonData.imageDataDict;
+
+		const cvs = document.createElement('canvas'),
+			ctx = cvs.getContext('2d');
+
+		let zip = new JSZip();
+		zip.file('project.json', JSON.stringify(jsonData));
+		let imageDir = zip.folder('image');
+		Object.entries(imageDataDict).forEach(([name, imageData]) => {
+			let imageBuffer;
+			if (imageData.buffer) {
+				buffer = imageBuffer;
+			} else {
+				[cvs.width, cvs.height] = [imageData.element.width, imageData.element.height];
+				ctx.drawImage(imageData.element, 0, 0);
+				imageBuffer = ctx.getImageData(0, 0, cvs.width, cvs.height).data.buffer;
+			}
+			imageDir.file(name, imageBuffer);
+		});
+
+		return zip;
+	}
+}
+let project = new Project();
+// project.partOfSpeech = {
+// 	n: ['我', '門', '電腦', '紙條', '寶箱', '電話', '鍵盤', '手錶', '蠟燭', '屎', '筆', '墨水', '衛生紙'],
+// 	v: ['走向', '檢查', '打開']
 // };
-// data.cases = [];
-data.partOfSpeech = {
-	n: ['我', '門', '電腦', '紙條', '寶箱', '電話', '鍵盤', '手錶', '蠟燭', '屎', '筆', '墨水', '衛生紙'],
-	v: ['走向', '檢查', '打開']
-};
-data.cases = NDArray([data.partOfSpeech.v.length, data.partOfSpeech.n.length, data.partOfSpeech.n.length], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
+// project.cases = NDArray([project.partOfSpeech.v.length, project.partOfSpeech.n.length, project.partOfSpeech.n.length], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
 
 const color = {
 	buttonHover: 'white',
@@ -49,7 +98,7 @@ const color = {
 	buttonWarning: '#03a9f4'
 };
 
-let currentScene = () => { };
+let currentScene = async () => { };
 let lastScene = currentScene;
 let sceneChange = false;
 currentScene = scene_sheet;
@@ -123,7 +172,7 @@ window.addEventListener('keyup', event => {
 
 /* data control method */
 function wordExist(word) {
-	return data.partOfSpeech.n.includes(word) || data.partOfSpeech.v.includes(word);
+	return project.partOfSpeech.n.includes(word) || project.partOfSpeech.v.includes(word);
 }
 function wordAdd({ POS }) {
 	popup.prompt({ text: '請輸入新字卡的名稱：' }, newWord => {
@@ -131,12 +180,12 @@ function wordAdd({ POS }) {
 		if (wordExist(newWord)) {
 			popup.alert('您輸入的名稱已存在，字卡新增失敗。');
 		} else {
-			let oldNLength = data.partOfSpeech.n.length;
-			data.partOfSpeech[POS].push(newWord);
+			let oldNLength = project.partOfSpeech.n.length;
+			project.partOfSpeech[POS].push(newWord);
 			if (POS == 'v') {
-				data.cases.push(NDArray([oldNLength, oldNLength], ([i1, i2]) => i1 != i2 ? FlowChart.exportEmpty() : undefined));
+				project.cases.push(NDArray([oldNLength, oldNLength], ([i1, i2]) => i1 != i2 ? FlowChart.exportEmpty() : undefined));
 			} else {
-				data.cases.forEach(vList => {
+				project.cases.forEach(vList => {
 					vList.map(sList => sList.push(FlowChart.exportEmpty()));
 					let newArray = NDArray([oldNLength], () => FlowChart.exportEmpty());
 					newArray.push(undefined);
@@ -147,7 +196,7 @@ function wordAdd({ POS }) {
 	});
 }
 function wordRename({ POS, index }) {
-	let oldName = data.partOfSpeech[POS][index]
+	let oldName = project.partOfSpeech[POS][index]
 	popup.prompt({ text: `請輸入「${oldName}」的新名稱：` }, newName => {
 		if (newName === null) return;
 		if (wordExist(newName)) {
@@ -157,19 +206,19 @@ function wordRename({ POS, index }) {
 				popup.alert('您輸入的名稱已存在，名稱更改失敗。');
 			}
 		} else {
-			data.partOfSpeech[POS].splice(index, 1, newName);
+			project.partOfSpeech[POS].splice(index, 1, newName);
 		}
 	});
 }
 function wordDelete({ POS, index, listName }) {
-	popup.confirm(`確定刪除「${data.partOfSpeech[POS][index]}」？`, res => {
+	popup.confirm(`確定刪除「${project.partOfSpeech[POS][index]}」？`, res => {
 		if (res) {
-			data.partOfSpeech[POS].splice(index, 1);
+			project.partOfSpeech[POS].splice(index, 1);
 			sceneVar.sheet[listName + 'Selected'] = false;
 			if (POS == 'v') {
-				data.cases.splice(index, 1);
+				project.cases.splice(index, 1);
 			} else {
-				data.cases.forEach(vList => {
+				project.cases.forEach(vList => {
 					vList.splice(index, 1);
 					vList.forEach(sList => sList.splice(index, 1));
 				});
@@ -200,7 +249,7 @@ function gotoO({ POS, index }) {
 }
 
 /* render scene */
-function scene_sheet() {
+async function scene_sheet() {
 	/* init */
 	if (!('sheet' in sceneVar)) {
 		sceneVar.sheet = {};
@@ -242,7 +291,7 @@ function scene_sheet() {
 		sceneVar.sheet.gridY -= mouse.deltaY / 2;
 	}
 	let [cellWidth, cellHeight] = [180, 60].map(n => n * sceneVar.sheet.scale);
-	let gridSize = data.partOfSpeech.n.length + 1;
+	let gridSize = project.partOfSpeech.n.length + 1;
 	let cellGap = 5;
 	let cellBorderWidth = 2;
 
@@ -303,7 +352,7 @@ function scene_sheet() {
 				rI = i == r ? rR : rC;
 			if (r == c && r == 0) {
 				option.border = color.wordBoxV;
-				option.text = data.partOfSpeech.v[sceneVar.sheet.vIndex];
+				option.text = project.partOfSpeech.v[sceneVar.sheet.vIndex];
 				if (sceneVar.global.gotoType == 'v') {
 					option.bgc = option.border;
 					option.fgc = 'black';
@@ -316,7 +365,7 @@ function scene_sheet() {
 					option.pos[0] += dX;
 				}
 				let cellHovered = gridHovered && isHover(mouse, cell);
-				option.text = data.partOfSpeech.n[rI - 1];
+				option.text = project.partOfSpeech.n[rI - 1];
 				option.border = color.wordBoxSAndO;
 				if (cellHovered) {
 					sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
@@ -333,7 +382,7 @@ function scene_sheet() {
 						option.fgc = 'black';
 					}
 				}
-				if (rI - 1 < 0 || rI > data.partOfSpeech.n.length) {
+				if (rI - 1 < 0 || rI > project.partOfSpeech.n.length) {
 					if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
 					continue;
 				};
@@ -364,7 +413,7 @@ function scene_sheet() {
 				) {
 					option.border = color.buttonWarning;
 				}
-				if (Math.min(rR, rC) - 1 < 0 || Math.max(rR, rC) > data.partOfSpeech.n.length) {
+				if (Math.min(rR, rC) - 1 < 0 || Math.max(rR, rC) > project.partOfSpeech.n.length) {
 					if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
 					continue;
 				}
@@ -443,7 +492,7 @@ function scene_sheet() {
 				targetCtx: tempCtx[listName],
 				list: list,
 				getSetScrollY: value => { return value !== undefined ? (sceneVar.sheet[listName + 'Y'] = value) : sceneVar.sheet[listName + 'Y'] },
-				itemList: data.partOfSpeech[listPOS],
+				itemList: project.partOfSpeech[listPOS],
 				itemBgc: listPOS == 'v' ? color.wordBoxV : color.wordBoxSAndO,
 				itemTextFormat: ({ item }) => item,
 				itemClickListener: ({ index }) => {
@@ -508,12 +557,12 @@ function scene_sheet() {
 			borderWidth: 1
 		});
 		let emptyCaseList = [];
-		for (let vI = 0; vI < data.cases.length; vI++)
-			for (let sI = 0; sI < data.cases[vI].length; sI++)
-				for (let oI = 0; oI < data.cases[vI][sI].length; oI++) {
-					if (data.cases[vI][sI][oI] && data.cases[vI][sI][oI].start === undefined) {
+		for (let vI = 0; vI < project.cases.length; vI++)
+			for (let sI = 0; sI < project.cases[vI].length; sI++)
+				for (let oI = 0; oI < project.cases[vI][sI].length; oI++) {
+					if (project.cases[vI][sI][oI] && project.cases[vI][sI][oI].start === undefined) {
 						emptyCaseList.push({
-							text: `${data.partOfSpeech.n[sI]} - ${data.partOfSpeech.v[vI]} - ${data.partOfSpeech.n[oI]}`,
+							text: `${project.partOfSpeech.n[sI]} - ${project.partOfSpeech.v[vI]} - ${project.partOfSpeech.n[oI]}`,
 							s: sI, v: vI, o: oI
 						});
 					}
@@ -558,7 +607,77 @@ function scene_sheet() {
 		lineWidth: 2,
 		stroke: 'white'
 	});
+
+	for (let option of [
+		{ // new project
+			pos: [header[0], header[1], header[3], header[3]],
+			bgiClip: [0, 0, 16, 16],
+			mouseClickListener: () => {
+				project = new Project();
+			}
+		},
+		{ // open project
+			pos: [header[0] + header[3], header[1], header[3], header[3]],
+			bgiClip: [16, 0, 16, 16],
+			mouseClickListener: () => {
+				openFile();
+			}
+		},
+		{ // save project
+			pos: [header[0] + header[3] * 2, header[1], header[3], header[3]],
+			bgiClip: [16 * 2, 0, 16, 16],
+			mouseClickListener: () => {
+				exportProject();
+			}
+		},
+		{ // project settings
+			pos: [header[0] + header[3] * 3, header[1], header[3], header[3]],
+			bgiClip: [16 * 3, 0, 16, 16],
+			mouseClickListener: () => {
+
+			}
+		}
+	]) {
+		ctx.save();
+		let bgiPos = [0, 0, 0, 0];
+		bgiPos[2] = bgiPos[3] = Math.min(option.pos[2], option.pos[3]) * 0.8;
+		bgiPos[0] = option.pos[0] + (option.pos[2] - bgiPos[2]) / 2;
+		bgiPos[1] = option.pos[1] + (option.pos[3] - bgiPos[3]) / 2;
+		ctx.imageSmoothingEnabled = false;
+		if (isHover(mouse, option.pos)) {
+			glowEffect(ctx, 'white', 20);
+			if (option.mouseClickListener && mouse.click) {
+				option.mouseClickListener();
+			}
+		} else {
+			glowEffect(ctx, 'white', 0);
+		}
+		ctx.drawImage(await getImage('image/headerButton.png'), ...option.bgiClip, ...bgiPos);
+		option = {
+			...option,
+			fgc: 'white',
+			size: 30
+		}
+		drawBox(ctx, option);
+		ctx.restore();
+	}
 }
+
+let projectName = 'project.pow';
+async function importProject(file) {
+	let zip = await JSZip.loadAsync(file);
+	project = await Project.fromZip(zip);
+	console.log(project);
+}
+async function exportProject() {
+	let zip = project.toZip();
+	let dataBuffer = await zip.generateAsync({
+		type: 'arrayBuffer',
+	  });
+	saveFile(dataBuffer, projectName);
+}
+function changeProjectName() { }
+
 async function scene_flowChart() {
 	/* init */
 	if (!('flowChart' in sceneVar)) {
@@ -576,13 +695,13 @@ async function scene_flowChart() {
 	if (sceneChange) {
 		let cellEditing = sceneVar.sheet.cellEditing;
 		sceneVar.flowChart.title = [
-			data.partOfSpeech.n[cellEditing[1]],
-			data.partOfSpeech.v[cellEditing[0]],
-			data.partOfSpeech.n[cellEditing[2]]
+			project.partOfSpeech.n[cellEditing[1]],
+			project.partOfSpeech.v[cellEditing[0]],
+			project.partOfSpeech.n[cellEditing[2]]
 		].join(' - ');
 		sceneVar.flowChart.flowChart = new FlowChart({
 			title: sceneVar.flowChart.title,
-			...data.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
+			...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
 		});
 	}
 
@@ -660,7 +779,7 @@ async function scene_flowChart() {
 			{
 				pos: [list[0], list[1], list[2], list[3] / 3],
 				text: '判斷節點',
-				bgiCut: [0, 0, 16, 16],
+				bgiClip: [0, 0, 16, 16],
 				mouseListener: {
 					type: 'down',
 					func: () => {
@@ -675,7 +794,7 @@ async function scene_flowChart() {
 			{
 				pos: [list[0], list[1] + list[3] / 3, list[2], list[3] / 3],
 				text: '對話節點',
-				bgiCut: [16, 0, 16, 16],
+				bgiClip: [16, 0, 16, 16],
 				mouseListener: {
 					type: 'down',
 					func: () => {
@@ -690,7 +809,7 @@ async function scene_flowChart() {
 			{
 				pos: [list[0], list[1] + list[3] / 3 * 2, list[2], list[3] / 3],
 				text: '節點刪除',
-				bgiCut: [16 * 2, 0, 16, 16],
+				bgiClip: [16 * 2, 0, 16, 16],
 				mouseListener: {
 					type: 'up',
 					func: () => {
@@ -720,7 +839,7 @@ async function scene_flowChart() {
 			} else {
 				glowEffect(ctx, 'white', 0);
 			}
-			ctx.drawImage(await getImage('image/backpackItem.png'), ...option.bgiCut, ...bgiPos);
+			ctx.drawImage(await getImage('image/backpackItem.png'), ...option.bgiClip, ...bgiPos);
 			ctx.globalAlpha = 1;
 			option = {
 				...option,
@@ -774,7 +893,7 @@ async function scene_flowChart() {
 		glowEffect(ctx, 'white', 2);
 		if (mouse.click) {
 			let cellEditing = sceneVar.sheet.cellEditing;
-			data.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+			project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
 			currentScene = scene_sheet;
 		}
 	}
@@ -828,9 +947,7 @@ async function loop() {
 			sceneChange = true;
 			lastScene = currentScene;
 		}
-
 		await currentScene();
-
 		sceneChange = false;
 		popup.setEvent({ mouse, keyboard }, false);
 		popup.draw();
