@@ -6,8 +6,9 @@
 - [x] flowChart場景 > 判斷節點
 - [x] flowChart場景 > 圖卡背包 判斷、對話之可拖曳空節點
 - [x] flowChart場景 > 節點連接
-- [ ] flowChart場景 > 缺控提示
-- [ ] sheet場景 > 缺控提示
+- [x] flowChart場景 > 空缺提示
+- [ ] flowChart場景 > 空缺提示 > when node connection has loop
+- [x] sheet場景 > 空缺提示
 - [ ] 字卡屬性
 - [ ] 字卡屬性 -> 可選之變數
 - [ ] flowChart場景 > 判斷節點、對話節點之變數欄位

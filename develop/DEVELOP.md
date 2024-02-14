@@ -33,4 +33,17 @@
 10. 刪除`Dialog`、`Circumstance`、`Case`等沒有用到的類別
 
 ## 2024/02/13 22:55 [MaoHuPi]
+
 1. 側邊欄「圖卡背包」
+
+## 2024/02/14 14:08 [MaoHuPi]
+
+1. 將`NDArray`移至`script/basic.js`
+2. 新增`script/flowChart.js`來存放`FlowChart`與其相關的類別宣告
+3. 將`FlowChart`的拖曳中節點正確繪製在`tempCvs.nodeDragging`上
+4. `tempCvs.nodeDragging`在流程圖圖框外進行半透明繪製
+5. 修正`FlowChart`的匯入/出錯誤
+6. 被連接節點的刪除
+7. flowChart場景 > 空缺提示
+8. `sheet`的`goto`改成點擊前往，不像原先那樣鎖定3秒
+9. sheet場景 > 空缺提示

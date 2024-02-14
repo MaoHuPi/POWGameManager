@@ -1,3 +1,16 @@
+/* generate object */
+function NDArray(lengthList, initValueFunc, indexList = []) {
+	return new Array(lengthList.shift()).fill(0).map((n, i) => {
+		let indexListNow = [...indexList];
+		indexListNow.push(i);
+		if (lengthList.length == 0) {
+			return initValueFunc(indexListNow);
+		} else {
+			return NDArray([...lengthList], initValueFunc, indexListNow);
+		}
+	});
+}
+
 /* load metarial */
 function loadMaterial(url, _constructor, eventName = 'onload') {
 	return new Promise(resolve => {
@@ -19,10 +32,57 @@ async function getImage(url) {
 	}
 }
 
-/* detect and draw things */
+/* detect and calculate */
 function isHover(mouse, [x, y, w, h]) {
 	return mouse.x > x && mouse.y > y && mouse.x < x + w && mouse.y < y + h;
 }
+function glowEffect(ctx, color, size) {
+	ctx.shadowColor = color;
+	ctx.shadowBlur = size;
+}
+function calcSize({ sizeBOCS, text = '', charSize, padding, charFont }) {
+	ctx.save();
+	let reLines = [''];
+	let size = sizeBOCS.map(n => n === undefined ? undefined : n * charSize + padding * 2);
+	if (size[0] == undefined && size[1] == undefined) {
+		ctx.font = `${charSize}px ${charFont}`;
+		let textRect = ctx.measureText(text);
+		size = [textRect.width + padding * 2, textRect.height + padding * 2];
+		reLines = [text];
+	} else if (size[0] == undefined) {
+		let charPerLine = Math.ceil(text.length / sizeBOCS[1]);
+		let lines = [], linesWidth = [];
+		let charList = text.split('');
+		while (charList.length > 0) {
+			let line = charList.splice(0, charPerLine).join('');
+			let lineRect = ctx.measureText(line);
+			linesWidth.push(lineRect.width);
+			lines.push(line);
+		}
+		size[0] = Math.max(...linesWidth) + padding * 2;
+		reLines = lines;
+	} else if (size[1] == undefined) {
+		let width = sizeBOCS[0] * charSize;
+		let lines = [''], linesWidth = [0];
+		ctx.font = `${charSize}px ${charFont}`;
+		for (let i = 0; i < text.length; i++) {
+			let charRect = ctx.measureText(text[i]);
+			if (linesWidth[linesWidth.length - 1] + charRect.width <= width) {
+				linesWidth[linesWidth.length - 1] += charRect.width;
+				lines[lines.length - 1] += text[i];
+			} else {
+				linesWidth.push(charRect.width);
+				lines.push(text[i]);
+			}
+		}
+		size[1] = lines.length * charSize + padding * 2;
+		reLines = lines;
+	}
+	ctx.restore();
+	return { size, lines: reLines };
+}
+
+/* draw things */
 function drawBox(ctx, { pos, bgc, border, borderWidth, text, decorate, font = 'Zpix', size, fgc, stroke, textAlign, padding = 0, gap = 0 }) {
 	if (pos == undefined) return;
 	if (bgc !== undefined) {
@@ -85,48 +145,52 @@ function drawPoliigon(ctx, { points, fill, stroke, lineWidth = 1 }) {
 		ctx.stroke();
 	}
 }
-function glowEffect(ctx, color, size) {
-	ctx.shadowColor = color;
-	ctx.shadowBlur = size;
-}
-function calcSize({ sizeBOCS, text = '', charSize, padding, charFont }) {
-	ctx.save();
-	let reLines = [''];
-	let size = sizeBOCS.map(n => n === undefined ? undefined : n * charSize + padding * 2);
-	if (size[0] == undefined && size[1] == undefined) {
-		ctx.font = `${charSize}px ${charFont}`;
-		let textRect = ctx.measureText(text);
-		size = [textRect.width + padding * 2, textRect.height + padding * 2];
-		reLines = [text];
-	} else if (size[0] == undefined) {
-		let charPerLine = Math.ceil(text.length / sizeBOCS[1]);
-		let lines = [], linesWidth = [];
-		let charList = text.split('');
-		while (charList.length > 0) {
-			let line = charList.splice(0, charPerLine).join('');
-			let lineRect = ctx.measureText(line);
-			linesWidth.push(lineRect.width);
-			lines.push(line);
+function drawList({
+	targetCvs, targetCtx,
+	list = [0, 0, 0, 0],
+	getSetScrollY = value => { let v; return value ? (v = value) : v },
+	itemList = [],
+	itemBgc = 'gray', 
+	itemTextFormat = item => item,
+	itemClickListener = () => { },
+	itemSelected = () => { },
+	listPadding = 10,
+	itemHeight = 30,
+	itemGap = 5,
+}) {
+	let listHovered = isHover(mouse, list);
+	let scrollY = getSetScrollY();
+	if (listHovered) {
+		scrollY -= mouse.deltaY;
+		scrollY = Math.min(Math.max(scrollY, -((itemHeight + itemGap) * itemList.length - itemGap - (list[3] - listPadding * 2))), 0);
+	}
+	targetCtx.clearRect(0, 0, CW, CH);
+	for (let i = 0; i < itemList.length; i++) {
+		targetCtx.save();
+		let option = {
+			pos: [list[0] + listPadding, list[1] + (itemHeight + itemGap) * i + listPadding + scrollY, list[2] - listPadding * 2, itemHeight],
+			bgc: itemBgc,
+			fgc: 'white',
+			text: itemTextFormat({ index: i, item: itemList[i] }),
+			size: 20
 		}
-		size[0] = Math.max(...linesWidth) + padding * 2;
-		reLines = lines;
-	} else if (size[1] == undefined) {
-		let width = sizeBOCS[0] * charSize;
-		let lines = [''], linesWidth = [0];
-		ctx.font = `${charSize}px ${charFont}`;
-		for (let i = 0; i < text.length; i++) {
-			let charRect = ctx.measureText(text[i]);
-			if (linesWidth[linesWidth.length - 1] + charRect.width <= width) {
-				linesWidth[linesWidth.length - 1] += charRect.width;
-				lines[lines.length - 1] += text[i];
-			} else {
-				linesWidth.push(charRect.width);
-				lines.push(text[i]);
+		if (listHovered && isHover(mouse, option.pos)) {
+			glowEffect(targetCtx, option.bgc, 10);
+			if (mouse.click) {
+				itemClickListener({ index: i, item: itemList[i] });
 			}
 		}
-		size[1] = lines.length * charSize + padding * 2;
-		reLines = lines;
+		if (itemSelected({ index: i, item: itemList[i] })) {
+			option.fgc = 'black';
+			drawBox(targetCtx, option);
+		} else {
+			targetCtx.globalAlpha = 0.5;
+			drawBox(targetCtx, { ...option, text: '' });
+			targetCtx.globalAlpha = 1;
+			drawBox(targetCtx, { ...option, bgc: undefined });
+		}
+		targetCtx.restore();
 	}
-	ctx.restore();
-	return { size, lines: reLines };
+	ctx.drawImage(targetCvs, ...list, ...list);
+	getSetScrollY(scrollY);
 }
