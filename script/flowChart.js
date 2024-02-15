@@ -167,13 +167,123 @@ class StartNode extends FlowChartNode {
 		}
 	}
 }
+function expressionTypeAndColor({ key1, key2 }) {
+	let typeColorMap = {
+		'num': '#4caf50',
+		'str': '#ff5722',
+		'pos': '#9c27b0',
+		'tof': '#3f51b5',
+		'tmp': '#607d8b',
+		'var': '#607d8b'
+	}
+	let propTypeMap = {
+		'position': 'pos',
+		'opened': 'tof'
+	}
+	if (key1 in typeColorMap) {
+		if (['tmp', 'var'].includes(key1)) {
+			let variableType = key2.toString().slice(0, 3);
+			if (variableType in typeColorMap && !['tmp', 'var'].includes(variableType)) {
+				return { type: variableType, color: typeColorMap[variableType] };
+			} else return { type: undefined, color: typeColorMap.var };
+		} else return { type: key1, color: typeColorMap[key1] };
+	} else if (key2 in propTypeMap) {
+		let type = propTypeMap[key2];
+		return { type, color: typeColorMap[type] };
+	} else return { type: undefined, color: typeColorMap.var };
+}
+function expressionEditFunction(defaultValue, mustBeMutable = false, callBack = ({ key1, key2 }) => { }) {
+	popup.search({
+		dict: {
+			...(!mustBeMutable ? {
+				'數字(number)': 'num',
+				'字串(string)': 'str',
+				'位置(position)': 'pos',
+				'布林(bool)': 'tof'
+			} : {}),
+			'暫時變數(temporary variable)': 'tmp',
+			'遊戲變數(game variable)': 'var',
+			...Object.fromEntries(Object.entries(project.partOfSpeech.n).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvn.${word}`])),
+			...Object.fromEntries(Object.entries(project.partOfSpeech.v).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvv.${word}`]))
+		}, defaultValue: defaultValue.key1, type: 'text'
+	}, async res1 => {
+		if (res1 !== null) {
+			defaultValue = res1.value == defaultValue.key1 ? defaultValue.key2 : undefined;
+			let search2CallBack = res2 => {
+				if (res2 !== null) callBack({ key1: res1.value, key2: res2.value });
+			}
+			if (res1.value == 'tof') {
+				popup.search({ dict: { '是(true)': true, '非(false)': false }, defaultValue, type: 'bool' }, search2CallBack);
+			} else if (['num', 'str', 'pos'].includes(res1.value)) {
+				popup.prompt({ text: `輸入「${res1.value}」類型的值：`, defaultValue }, value => {
+					if (value !== null) {
+						switch (res1.value) {
+							case 'num':
+								value = Number(value);
+								break;
+							case 'str':
+								value = value.toString(); // 避免錯誤
+								break;
+							case 'pos':
+								try {
+									value = JSON.parse(value);
+								} catch (e) { }
+								if (Array.isArray(value)) {
+									value = new Array(4).fill(0)
+										.map((n, i) => value[i] !== undefined ? value[i] : n);
+								} else {
+									value = [0, 0];
+								}
+								break;
+						}
+						callBack({ key1: res1.value, key2: value });
+					}
+				});
+			} else if (res1.value == 'tmp') {
+				let tmpVariableList = [];
+				[...sceneVar.flowChart.flowChart.circumstanceNodeList,
+				...sceneVar.flowChart.flowChart.assignmentNodeList].forEach(node => {
+					[node.leftExpression,
+					node.rightExpression].forEach(({ key1, key2 }) => {
+						if (key1 === 'tmp') tmpVariableList.push(key2);
+					});
+				});
+				popup.search({ list: tmpVariableList, type: 'text', defaultValue, canOutOfEntries: true }, search2CallBack);
+			} else if (res1.value == 'var') {
+				let varVariableList = [];
+				[...project.cases.flat().flat(), sceneVar.flowChart.flowChart.export()].forEach(caseObj => {
+					if (caseObj) {
+						[...Object.values(caseObj.circumstance),
+						...Object.values(caseObj.assignment)].forEach(node => {
+							[node.leftExpression,
+							node.rightExpression].forEach(({ key1, key2 }) => {
+								if (key1 === 'var') varVariableList.push(key2);
+							});
+						});
+					}
+				});
+				popup.search({ list: varVariableList, type: 'text', defaultValue, canOutOfEntries: true }, search2CallBack);
+			} else {
+				let valueSplitByDot = res1.value.split('.');
+				let valuePOS = valueSplitByDot.shift() == 'wvn' ? 'n' : 'v';
+				let valueIndex = project.partOfSpeech[valuePOS].indexOf(valueSplitByDot.join('.'));
+				let wordAttribute = project.wordAttribute[valuePOS][valueIndex];
+				let stateList = [];
+				if (valuePOS == 'n' && (!mustBeMutable || (mustBeMutable && wordAttribute.moveable))) stateList.push('position');
+				if (wordAttribute.openable) stateList.push('opened');
+				popup.search({ list: stateList, type: 'text', defaultValue }, search2CallBack);
+			}
+		}
+	});
+}
 class CircumstanceNode extends FlowChartNode {
 	static compTypeSymbolTable = {
 		num: ['=', '<', '>', '≠'],
 		str: ['=', '≈', '⊂', '≠'],
-		pos: ['=', '∩(≠∅)', '⊆', '∩(=∅)']
+		pos: ['=', '⊆', '∩(≠∅)', '∩(=∅)'],
+		tof: ['=', '≠']
 	}
-	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'myVar' }, rightExpression = { key1: 'num', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
+	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
 		this.compType = compType;
 		this.leftExpression = leftExpression;
@@ -183,8 +293,8 @@ class CircumstanceNode extends FlowChartNode {
 		this.calc();
 	}
 	export() {
-		let { anchor, compType, ifTrue, ifFalse } = this;
-		return { anchor, compType, ifTrue, ifFalse };
+		let { anchor, leftExpression, rightExpression, compType, ifTrue, ifFalse } = this;
+		return { anchor, leftExpression, rightExpression, compType, ifTrue, ifFalse };
 	}
 	calc() {
 		let { charSize, padding } = FlowChartNode;
@@ -206,65 +316,6 @@ class CircumstanceNode extends FlowChartNode {
 			this.size[0], this.size[1]
 		];
 	}
-	expressionEditFunction(defaultValue, callBack = ({ key1, key2 }) => { }) {
-		popup.search({
-			dict: {
-				'數字(number)': 'num',
-				'字串(string)': 'str',
-				'位置(position)': 'pos',
-				'布林(bool)': 'tof',
-				'暫時變數(temporary variable)': 'tmp',
-				'遊戲變數(game variable)': 'var',
-				...Object.fromEntries(Object.entries(project.partOfSpeech.n).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvn.${word}`])),
-				...Object.fromEntries(Object.entries(project.partOfSpeech.v).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvv.${word}`]))
-			}, defaultValue: defaultValue.key1, type: 'text'
-		}, async res1 => {
-			if (res1 !== null) {
-				defaultValue = res1.value == defaultValue.key1 ? defaultValue.key2 : undefined;
-				let search2CallBack = res2 => {
-					if (res2 !== null) callBack({ key1: res1.value, key2: res2.value });
-				}
-				if (res1.value == 'tof') {
-					popup.search({ dict: { '是(true)': true, '非(false)': false }, defaultValue, type: 'bool' }, search2CallBack);
-				} else if (['num', 'str', 'pos'].includes(res1.value)) {
-					popup.prompt({ text: `輸入「${res1.value}」類型的值：`, defaultValue }, value => {
-						if (value !== null) {
-							switch (res1.value) {
-								case 'num':
-									value = Number(value);
-									break;
-								case 'str':
-									value = value.toString(); // 避免錯誤
-									break;
-								case 'pos':
-									try {
-										value = JSON.parse(value);
-									} catch (e) { }
-									if (Array.isArray(value)) {
-										value = new Array(2).fill(0)
-											.map((n, i) => value[i] !== undefined ? value[i] : n);
-									} else {
-										value = [0, 0];
-									}
-									break;
-							}
-							callBack({ key1: res1.value, key2: value });
-						}
-					});
-				} else if (['tmp', 'var'].includes(res1.value)) {
-					// popup.search(, search2CallBack);
-				} else {
-					let valueSplitByDot = res1.value.split('.');
-					let valuePOS = valueSplitByDot.shift() == 'wvn' ? 'n' : 'v';
-					let valueIndex = project.partOfSpeech[valuePOS].indexOf(valueSplitByDot.join('.'));
-					let wordAttribute = project.wordAttribute[valuePOS][valueIndex];
-					let stateList = ['position'];
-					if (wordAttribute.openable) stateList.push('opened');
-					popup.search({ list: stateList, type: 'text', defaultValue }, search2CallBack);
-				}
-			}
-		});
-	}
 	draw(ctx, chart) {
 		let pos = this.getScreenPos(chart);
 		const scale = sceneVar.flowChart.scale;
@@ -280,26 +331,6 @@ class CircumstanceNode extends FlowChartNode {
 		});
 		this.drawTab(ctx, pos, '判斷');
 		let boxY = pos[1] + padding;
-		function expressionTypeAndColor({ key1, key2 }) {
-			let typeColorMap = {
-				'num': '#4caf50',
-				'str': '#ff5722',
-				'pos': '#9c27b0',
-				'tof': '#3f51b5',
-				'tmp': '#795548',
-				'var': '#607d8b'
-			}
-			let propTypeMap = {
-				'position': 'pos',
-				'opened': 'tof'
-			}
-			if (key1 in typeColorMap) {
-				return { type: ['tmp', 'var'].includes(key1) ? undefined : key1, color: typeColorMap[key1] };
-			} else if (key2 in propTypeMap) {
-				let type = propTypeMap[key2];
-				return { type, color: typeColorMap[type] };
-			} else return { type: undefined, color: typeColorMap.var };
-		}
 		let typeAndColorLeft = expressionTypeAndColor(this.leftExpression),
 			typeAndColorRight = expressionTypeAndColor(this.rightExpression);
 		let typeEqual = (typeAndColorLeft.type && typeAndColorRight.type && typeAndColorLeft.type === typeAndColorRight.type);
@@ -310,7 +341,7 @@ class CircumstanceNode extends FlowChartNode {
 				text: this.leftExpressionLines,
 				bgc: typeAndColorLeft.color,
 				editFunction: () => {
-					this.expressionEditFunction(this.leftExpression, expression => {
+					expressionEditFunction(this.leftExpression, false, expression => {
 						this.leftExpression = expression;
 						this.calc();
 					});
@@ -330,7 +361,7 @@ class CircumstanceNode extends FlowChartNode {
 				text: this.rightExpressionLines,
 				bgc: typeAndColorRight.color,
 				editFunction: () => {
-					this.expressionEditFunction(this.rightExpression, expression => {
+					expressionEditFunction(this.rightExpression, false, expression => {
 						this.rightExpression = expression;
 						this.calc();
 					});
@@ -375,6 +406,8 @@ class CircumstanceNode extends FlowChartNode {
 		if (this.ifTrue) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 1 }, { node: this.ifTrue, dotIndex: 0 }]);
 		if (this.ifFalse) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 3 }, { node: this.ifFalse, dotIndex: 0 }]);
 		sceneVar.flowChart.nodesDots.set(this, dotsPos);
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
 		ctx.font = `${FlowChartNode.charSize * scale * 0.6}px ${FlowChartNode.charFont}`;
 		ctx.fillStyle = color.text;
 		ctx.fillText('t', dotsPos[1][0], dotsPos[1][1] - 30 * scale);
@@ -393,7 +426,135 @@ class CircumstanceNode extends FlowChartNode {
 		}
 	}
 }
-class AssignmentNode extends FlowChartNode { } // 操作節點
+class AssignmentNode extends FlowChartNode {
+	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, then = undefined }) {
+		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
+		this.compType = compType;
+		this.leftExpression = leftExpression;
+		this.rightExpression = rightExpression;
+		this.then = then;
+		this.calc();
+	}
+	export() {
+		let { anchor, leftExpression, rightExpression, compType, then } = this;
+		return { anchor, leftExpression, rightExpression, compType, then };
+	}
+	calc() {
+		let { charSize, padding } = FlowChartNode;
+		charSize *= 0.8;
+		let blockPadding = padding / 2;
+		let buttonWidth = 10 * FlowChartNode.charSize - blockPadding * 2;
+		let sizeData1 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.leftExpression.key1}: ${this.leftExpression.key2}` });
+		let sizeData2 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.rightExpression.key1}: ${this.rightExpression.key2}` });
+		this.leftExpressionLines = sizeData1.lines;
+		this.rightExpressionLines = sizeData2.lines; ``
+		this.size = [
+			Math.max(10 * FlowChartNode.charSize, sizeData1.size[0], sizeData2.size[0]) + padding * 2,
+			padding * 3 +
+			blockPadding * 8 +
+			((charSize) * (1 + sizeData1.lines.length + sizeData2.lines.length))
+		];
+		this.pos = [
+			this.anchor[0] - this.size[0] / 2, this.anchor[1],
+			this.size[0], this.size[1]
+		];
+	}
+	draw(ctx, chart) {
+		let pos = this.getScreenPos(chart);
+		const scale = sceneVar.flowChart.scale;
+		let padding = FlowChartNode.padding * scale;
+		let blockPadding = padding / 2;
+		let charSize = FlowChartNode.charSize * scale;
+		let reCalc = false;
+		drawBox(ctx, {
+			pos,
+			bgc: color.buttonBgc,
+			border: 'white',
+			borderWidth: 5 * scale
+		});
+		this.drawTab(ctx, pos, '操作');
+		let boxY = pos[1] + padding;
+		let typeAndColorLeft = expressionTypeAndColor(this.leftExpression),
+			typeAndColorRight = expressionTypeAndColor(this.rightExpression);
+		let typeEqual = (typeAndColorLeft.type && typeAndColorRight.type && typeAndColorLeft.type === typeAndColorRight.type);
+		let compTypeEnable = (typeEqual && (typeAndColorLeft.type in CircumstanceNode.compTypeSymbolTable) &&
+			CircumstanceNode.compTypeSymbolTable[typeAndColorLeft.type].length > this.compType);
+		for (let itemData of [
+			{
+				text: this.leftExpressionLines,
+				bgc: typeAndColorLeft.color,
+				editFunction: () => {
+					expressionEditFunction(this.leftExpression, true, expression => {
+						this.leftExpression = expression;
+						this.calc();
+					});
+				}
+			},
+			{
+				text: compTypeEnable ? '<-' : 'x',
+				bgc: typeEqual ? typeAndColorLeft.color : 'white',
+				editFunction: () => { }
+			},
+			{
+				text: this.rightExpressionLines,
+				bgc: typeAndColorRight.color,
+				editFunction: () => {
+					expressionEditFunction(this.rightExpression, false, expression => {
+						this.rightExpression = expression;
+						this.calc();
+					});
+				}
+			}
+		]) {
+			let boxHeight = (charSize * (typeof itemData.text == 'string' ? 1 : itemData.text.length)) + blockPadding * 2;
+			let boxPos = [pos[0] + padding, boxY, pos[2] - padding * 2, boxHeight];
+			drawBox(ctx, {
+				pos: boxPos,
+				border: 'white',
+				borderWidth: 2 * scale
+			});
+
+			let option = {
+				pos: [boxPos[0] + blockPadding, boxPos[1] + blockPadding, boxPos[2] - blockPadding * 2, boxPos[3] - blockPadding * 2],
+				bgc: itemData.bgc ? itemData.bgc : 'white',
+				fgc: 'white',
+				text: itemData.text,
+				size: charSize * 0.8,
+				font: FlowChartNode.charFont,
+				padding: charSize * 0.1
+			};
+			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
+			if (hovered) {
+				mouse.down = false;
+				if (mouse.click) {
+					itemData.editFunction();
+					mouse.click = false;
+				}
+			}
+			ctx.globalAlpha = 0.5;
+			drawBox(ctx, { ...option, text: undefined });
+			ctx.globalAlpha = 1;
+			drawBox(ctx, { ...option, bgc: undefined });
+
+			boxY += boxPos[3] + blockPadding;
+		}
+
+		let dotsPos = this.getDotsScreenPos(pos);
+		this.drawDots(ctx, chart, dotsPos, [0, 2]);
+		if (this.then) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 2 }, { node: this.then, dotIndex: 0 }]);
+		sceneVar.flowChart.nodesDots.set(this, dotsPos);
+		if (reCalc) {
+			this.calc();
+		} else {
+			this.update(chart);
+		}
+	}
+	connect(fromDot, toNode) {
+		if (fromDot == 2) {
+			this.then = toNode;
+		}
+	}
+}
 class DialogNode extends FlowChartNode {
 	static itemGap = 10;
 	constructor({ anchor = [200, 200], image = '', message = '輸入對話內容', appendWords = [], removeWords = [] }) {

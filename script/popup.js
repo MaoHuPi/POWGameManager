@@ -494,7 +494,7 @@ class Popup {
 					return undefined;
 				};
 				if (popup.argument.selected === undefined) {
-					if (popup.argument.canOutOfEntries) return popup.input.value;
+					if (popup.argument.canOutOfEntries) return { key: popup.input.value, value: popup.input.value };
 					else if (filteredList.length > 0) popup.argument.selected = filteredList[0];
 					else return null;
 				}

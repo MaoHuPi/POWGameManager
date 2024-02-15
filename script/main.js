@@ -872,7 +872,7 @@ async function scene_flowChart() {
 						let node = new AssignmentNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
-						sceneVar.flowChart.flowChart.circumstanceNodeList.push(node);
+						sceneVar.flowChart.flowChart.assignmentNodeList.push(node);
 					}
 				}
 			},
