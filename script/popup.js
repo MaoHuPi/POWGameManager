@@ -117,8 +117,8 @@ class Popup {
 				if (element.show === false) {
 					this.show = false;
 					this.argument = undefined;
+					this.hideInput(); // must hide input before call this.callBack
 					this.callBack(element.res);
-					this.hideInput();
 				}
 			});
 		}
@@ -331,13 +331,14 @@ class Popup {
 			keys: ['Escape']
 		}));
 	}
-	search({ dict, list, type = 'text', defaultValue = '' }, callBack = () => { }) {
+	search({ dict, list, type = 'text', defaultValue = '', canOutOfEntries = false }, callBack = () => { }) {
 		this.type = 'search';
 		this.argument = {
 			entries: (dict ? Object.entries(dict) : (list.map(item => [item, item]))),
 			type: type,
 			optionListY: 0,
-			selected: undefined
+			selected: undefined,
+			canOutOfEntries: canOutOfEntries
 		};
 		this.callBack = callBack;
 		this.show = true;
@@ -385,13 +386,13 @@ class Popup {
 			borderWidth: 2 + 'px'
 		});
 		this.showInput();
-		this.input.value = defaultValue;
+		this.argument.selected = this.argument.entries[this.argument.entries.map(([_, n]) => n).indexOf(defaultValue)];
+		if (this.argument.selected !== undefined) this.input.value = this.argument.selected[0];
+		let optionHeight = 40, optionGap = 10;
 		elements.push(({ CW, CH, mouse }) => {
 			bg[0] = (CW - bg[2]) / 2;
 			bg[1] = (CH - bg[3]) / 2;
 			let optionList = [bg[0] + messagePadding, bg[1] + messagePadding + inputHeight, bg[2] - messagePadding * 2 - inputHeight, 0];
-			let optionHeight = 40, optionGap = 10;
-			// let filteredList = this.input.value == '' ? [] : this.argument.entries.filter(KVPair => KVPair[0].includes(this.input.value));
 			let filteredList = this.argument.entries.filter(KVPair => KVPair[0].includes(this.input.value));
 			let listHeight = Math.max((optionHeight + optionGap) * filteredList.length - optionGap, 0);
 			let listMaxViewHeight = (CH - optionList[1]) * 0.9;
@@ -423,6 +424,10 @@ class Popup {
 						this.argument.selected = filteredList[i];
 						this.input.value = this.argument.selected[0];
 					}
+				} else if (filteredList[i] === this.argument.selected) {
+					glowEffect(tempCtx, 'white', 20);
+					optionOption.bgc = '#ffffff88';
+					optionOption.fgc = 'black';
 				}
 				optionOption.padding = (optionOption.pos[3] - optionOption.size) / 2;
 				drawBox(tempCtx, optionOption);
@@ -452,9 +457,70 @@ class Popup {
 				return [bg[0] + bg[2] - messagePadding - inputHeight, bg[1] + messagePadding, inputHeight, inputHeight];
 			})(),
 			text: '選定',
-			value: ({ popup, keyboard }) => keyboard.Escape || popup.argument.selected === undefined ? null :
-				{ key: popup.argument.selected[0], value: popup.argument.selected[1] },
-			keys: ['Enter', 'Escape']
+			value: ({ popup, keyboard }) => {
+				if (keyboard.Escape) return null;
+				let filteredList = this.argument.entries.filter(KVPair => KVPair[0].includes(this.input.value));
+				if (keyboard.ArrowUp || keyboard.ArrowDown) {
+					if (this.argument.selected !== undefined && filteredList.includes(this.argument.selected)) {
+						let nextIndex = filteredList.indexOf(this.argument.selected) + (keyboard.ArrowUp ? -1 : 1);
+						let nextSelected = filteredList[nextIndex];
+						if (nextSelected !== undefined) {
+							bg[0] = (CW - bg[2]) / 2;
+							bg[1] = (CH - bg[3]) / 2;
+							let optionList = [bg[0] + messagePadding, bg[1] + messagePadding + inputHeight, bg[2] - messagePadding * 2 - inputHeight, 0];
+							let filteredList = this.argument.entries.filter(KVPair => KVPair[0].includes(this.input.value));
+							let listHeight = Math.max((optionHeight + optionGap) * filteredList.length - optionGap, 0);
+							let listMaxViewHeight = (CH - optionList[1]) * 0.9;
+							optionList[3] = Math.min(listHeight, listMaxViewHeight);
+							let selectedPos = [optionList[0], optionList[1] + (optionHeight + optionGap) * nextIndex + this.argument.optionListY, optionList[2], optionHeight];
+							if (selectedPos[1] < optionList[1]) {
+								this.argument.optionListY += optionList[1] - selectedPos[1];
+							} else if ((selectedPos[1] + selectedPos[3]) > (optionList[1] + optionList[3])) {
+								this.argument.optionListY += (optionList[1] + optionList[3]) - (selectedPos[1] + selectedPos[3]);
+							}
+
+							this.argument.selected = nextSelected;
+						}
+					} else if (this.argument.selected === undefined && filteredList.length > 0) {
+						this.argument.selected = filteredList[0];
+					} else {
+						this.argument.selected = undefined;
+					}
+					return undefined;
+				}
+				if (keyboard.Tab) {
+					if (this.argument.selected === undefined) this.argument.selected = filteredList[0];
+					if (this.argument.selected !== undefined) this.input.value = this.argument.selected[0];
+					return undefined;
+				};
+				if (popup.argument.selected === undefined) {
+					if (popup.argument.canOutOfEntries) return popup.input.value;
+					else if (filteredList.length > 0) popup.argument.selected = filteredList[0];
+					else return null;
+				}
+				return { key: popup.argument.selected[0], value: popup.argument.selected[1] };
+			},
+			keys: ['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'],
+			hovered: function (argumentDir) {
+				let { ctx, mouse } = argumentDir;
+				glowEffect(ctx, this.border, 20);
+				this.bgc = 'white';
+				this.fgc = 'black';
+				if (mouse.click) {
+					this.res = this.value(argumentDir);
+					this.show = false;
+				}
+			},
+			keyboardListener: function (argumentDir) {
+				let { keyboard } = argumentDir;
+				if (Object.entries(keyboard).filter(([key, value]) => !this.keys.includes(key) && value).length > 0) {
+					popup.argument.selected = undefined;
+				}
+				if (this.keys.filter(key => keyboard[key]).length > 0) {
+					this.res = this.value(argumentDir);
+					this.show = (this.res === undefined ? true : false);
+				}
+			}
 		}));
 	}
 }

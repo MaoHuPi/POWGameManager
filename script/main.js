@@ -230,18 +230,16 @@ cvs.addEventListener('wheel', event => {
 	}
 });
 const keyboard = {};
-window.addEventListener('keydown', event => {
-	keyboard[event.key] = true;
+function updateKeyboard(event, setValue) {
+	let preventDefaultKeys = ['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'];
+	if (preventDefaultKeys.includes(event.key)) event.preventDefault();
+	keyboard[event.key] = setValue;
 	keyboard.Control = event.ctrlKey;
 	keyboard.Shift = event.shiftKey;
 	keyboard.Alt = event.altKey;
-});
-window.addEventListener('keyup', event => {
-	keyboard[event.key] = false;
-	keyboard.Control = event.ctrlKey;
-	keyboard.Shift = event.shiftKey;
-	keyboard.Alt = event.altKey;
-});
+}
+window.addEventListener('keydown', event => { updateKeyboard(event, true) });
+window.addEventListener('keyup', event => { updateKeyboard(event, false) });
 
 /* draw element method */
 // move to basic.js to share with popup.js
@@ -1263,31 +1261,31 @@ async function scene_attribute() {
 	};
 	for (let i = 0; i < project.wordAttribute.n.length; i++) {
 		let word = project.partOfSpeech.n[i];
-		let wordData = project.wordAttribute.n[i];
-		let isEditingWord = (wordData === sceneVar.attribute.attributeData);
-		if (!('center' in wordData)) wordData.center = [0, 0];
+		let wordAttribute = project.wordAttribute.n[i];
+		let isEditingWord = (wordAttribute === sceneVar.attribute.attributeData);
+		if (!('center' in wordAttribute)) wordAttribute.center = [0, 0];
 		areaOption.border = isEditingWord ? 'white' : 'gray';
 		dotOption.bgc = isEditingWord ? 'white' : 'gray';
 		let size;
 		let option = {};
-		if (wordData.isArea) {
-			if (!('size' in wordData)) wordData.size = [50, 50];
-			size = wordData.size;
+		if (wordAttribute.isArea) {
+			if (!('size' in wordAttribute)) wordAttribute.size = [50, 50];
+			size = wordAttribute.size;
 			option = areaOption;
 		} else {
-			if ('size' in wordData) delete wordData.size;
+			if ('size' in wordAttribute) delete wordAttribute.size;
 			size = [10, 10];
 			option = dotOption;
 		}
-		let wordPos = toScreenPos({ center: wordData.center, size });
+		let wordPos = toScreenPos({ center: wordAttribute.center, size });
 		drawBox(tempCtx.map, { ...option, pos: wordPos });
 		if (isEditingWord) {
 			editingWordPos = wordPos;
-			if (wordData.isArea) {
-				if (!('size' in wordData)) wordData.size = [20, 20];
+			if (wordAttribute.isArea) {
+				if (!('size' in wordAttribute)) wordAttribute.size = [20, 20];
 				drawBox(tempCtx.map, {
 					...dotOption,
-					pos: toScreenPos({ center: wordData.center, size: [10, 10] })
+					pos: toScreenPos({ center: wordAttribute.center, size: [10, 10] })
 				});
 			}
 		}
@@ -1295,12 +1293,12 @@ async function scene_attribute() {
 	ctx.drawImage(tempCvs.map, ...map, ...map);
 
 	/* edit center and size of editing word data */
-	let wordData = sceneVar.attribute.attributeData;
+	let wordAttribute = sceneVar.attribute.attributeData;
 	if (sceneVar.sheet.wordEditingPOS === 'n' && mouse.down) {
 		let halfSize = [editingWordPos[2] / 2, editingWordPos[3] / 2];
 		let center = [editingWordPos[0] + halfSize[0], editingWordPos[1] + halfSize[1]];
 		let toCursor = [mouse.x - center[0], mouse.y - center[1]];
-		if (wordData.isArea) {
+		if (wordAttribute.isArea) {
 			function getCrossPoint(vec, [p1, p2] /* relative vertical or horizontal line */) {
 				let isVertical = p1[0] == p2[0];
 				let crossPoint = [0, 0];
@@ -1322,7 +1320,7 @@ async function scene_attribute() {
 				}
 			}
 		}
-		if (!wordData.isArea || (wordData.isArea && sceneVar.attribute.areaDraggingEdge === undefined)) {
+		if (!wordAttribute.isArea || (wordAttribute.isArea && sceneVar.attribute.areaDraggingEdge === undefined)) {
 			if (vecLength(toCursor) <= 10) sceneVar.attribute.areaDraggingCenter = true;
 		}
 	} else { // else => !mouse.down
@@ -1330,13 +1328,13 @@ async function scene_attribute() {
 			mouse.x - (map[0] + map[2] / 2 + sceneVar.attribute.mapX),
 			mouse.y - (map[1] + map[3] / 2 + sceneVar.attribute.mapY)
 		].map(n => n / sceneVar.attribute.scale);
-		if (wordData.isArea && sceneVar.attribute.areaDraggingEdge !== undefined) {
+		if (wordAttribute.isArea && sceneVar.attribute.areaDraggingEdge !== undefined) {
 			let edgeIsVertical = (sceneVar.attribute.areaDraggingEdge % 2 == 1);
 			let targetIndex = edgeIsVertical ? 0 : 1;
-			wordData.size[targetIndex] = Math.abs(mapMousePos[targetIndex] - wordData.center[targetIndex]) * 2;
+			wordAttribute.size[targetIndex] = Math.abs(mapMousePos[targetIndex] - wordAttribute.center[targetIndex]) * 2;
 			if (mouse.up) sceneVar.attribute.areaDraggingEdge = undefined;
 		} else if (sceneVar.attribute.areaDraggingCenter) {
-			wordData.center = mapMousePos;
+			wordAttribute.center = mapMousePos;
 			if (mouse.up) sceneVar.attribute.areaDraggingCenter = false;
 		}
 	}

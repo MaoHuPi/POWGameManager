@@ -168,12 +168,16 @@ class StartNode extends FlowChartNode {
 	}
 }
 class CircumstanceNode extends FlowChartNode {
-	static itemGap = 10;
-	constructor({ anchor = [-200, 200], compType = 0, leftExpressions = { key1: 'var', key2: 'myVar' }, rightExpressions = { key1: 'int', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
+	static compTypeSymbolTable = {
+		num: ['=', '<', '>', '≠'],
+		str: ['=', '≈', '⊂', '≠'],
+		pos: ['=', '∩(≠∅)', '⊆', '∩(=∅)']
+	}
+	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'myVar' }, rightExpression = { key1: 'num', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
 		this.compType = compType;
-		this.leftExpressions = leftExpressions;
-		this.rightExpressions = rightExpressions;
+		this.leftExpression = leftExpression;
+		this.rightExpression = rightExpression;
 		this.ifTrue = ifTrue;
 		this.ifFalse = ifFalse;
 		this.calc();
@@ -187,10 +191,10 @@ class CircumstanceNode extends FlowChartNode {
 		charSize *= 0.8;
 		let blockPadding = padding / 2;
 		let buttonWidth = 10 * FlowChartNode.charSize - blockPadding * 2;
-		let sizeData1 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.leftExpressions.key1}: ${this.leftExpressions.key2}` });
-		let sizeData2 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.rightExpressions.key1}: ${this.rightExpressions.key2}` });
-		this.leftExpressionsLines = sizeData1.lines;
-		this.rightExpressionsLines = sizeData2.lines; ``
+		let sizeData1 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.leftExpression.key1}: ${this.leftExpression.key2}` });
+		let sizeData2 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.rightExpression.key1}: ${this.rightExpression.key2}` });
+		this.leftExpressionLines = sizeData1.lines;
+		this.rightExpressionLines = sizeData2.lines; ``
 		this.size = [
 			Math.max(10 * FlowChartNode.charSize, sizeData1.size[0], sizeData2.size[0]) + padding * 2,
 			padding * 3 +
@@ -201,6 +205,65 @@ class CircumstanceNode extends FlowChartNode {
 			this.anchor[0] - this.size[0] / 2, this.anchor[1],
 			this.size[0], this.size[1]
 		];
+	}
+	expressionEditFunction(defaultValue, callBack = ({ key1, key2 }) => { }) {
+		popup.search({
+			dict: {
+				'數字(number)': 'num',
+				'字串(string)': 'str',
+				'位置(position)': 'pos',
+				'布林(bool)': 'tof',
+				'暫時變數(temporary variable)': 'tmp',
+				'遊戲變數(game variable)': 'var',
+				...Object.fromEntries(Object.entries(project.partOfSpeech.n).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvn.${word}`])),
+				...Object.fromEntries(Object.entries(project.partOfSpeech.v).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvv.${word}`]))
+			}, defaultValue: defaultValue.key1, type: 'text'
+		}, async res1 => {
+			if (res1 !== null) {
+				defaultValue = res1.value == defaultValue.key1 ? defaultValue.key2 : undefined;
+				let search2CallBack = res2 => {
+					if (res2 !== null) callBack({ key1: res1.value, key2: res2.value });
+				}
+				if (res1.value == 'tof') {
+					popup.search({ dict: { '是(true)': true, '非(false)': false }, defaultValue, type: 'bool' }, search2CallBack);
+				} else if (['num', 'str', 'pos'].includes(res1.value)) {
+					popup.prompt({ text: `輸入「${res1.value}」類型的值：`, defaultValue }, value => {
+						if (value !== null) {
+							switch (res1.value) {
+								case 'num':
+									value = Number(value);
+									break;
+								case 'str':
+									value = value.toString(); // 避免錯誤
+									break;
+								case 'pos':
+									try {
+										value = JSON.parse(value);
+									} catch (e) { }
+									if (Array.isArray(value)) {
+										value = new Array(2).fill(0)
+											.map((n, i) => value[i] !== undefined ? value[i] : n);
+									} else {
+										value = [0, 0];
+									}
+									break;
+							}
+							callBack({ key1: res1.value, key2: value });
+						}
+					});
+				} else if (['tmp', 'var'].includes(res1.value)) {
+					// popup.search(, search2CallBack);
+				} else {
+					let valueSplitByDot = res1.value.split('.');
+					let valuePOS = valueSplitByDot.shift() == 'wvn' ? 'n' : 'v';
+					let valueIndex = project.partOfSpeech[valuePOS].indexOf(valueSplitByDot.join('.'));
+					let wordAttribute = project.wordAttribute[valuePOS][valueIndex];
+					let stateList = ['position'];
+					if (wordAttribute.openable) stateList.push('opened');
+					popup.search({ list: stateList, type: 'text', defaultValue }, search2CallBack);
+				}
+			}
+		});
 	}
 	draw(ctx, chart) {
 		let pos = this.getScreenPos(chart);
@@ -217,25 +280,60 @@ class CircumstanceNode extends FlowChartNode {
 		});
 		this.drawTab(ctx, pos, '判斷');
 		let boxY = pos[1] + padding;
+		function expressionTypeAndColor({ key1, key2 }) {
+			let typeColorMap = {
+				'num': '#4caf50',
+				'str': '#ff5722',
+				'pos': '#9c27b0',
+				'tof': '#3f51b5',
+				'tmp': '#795548',
+				'var': '#607d8b'
+			}
+			let propTypeMap = {
+				'position': 'pos',
+				'opened': 'tof'
+			}
+			if (key1 in typeColorMap) {
+				return { type: ['tmp', 'var'].includes(key1) ? undefined : key1, color: typeColorMap[key1] };
+			} else if (key2 in propTypeMap) {
+				let type = propTypeMap[key2];
+				return { type, color: typeColorMap[type] };
+			} else return { type: undefined, color: typeColorMap.var };
+		}
+		let typeAndColorLeft = expressionTypeAndColor(this.leftExpression),
+			typeAndColorRight = expressionTypeAndColor(this.rightExpression);
+		let typeEqual = (typeAndColorLeft.type && typeAndColorRight.type && typeAndColorLeft.type === typeAndColorRight.type);
+		let compTypeEnable = (typeEqual && (typeAndColorLeft.type in CircumstanceNode.compTypeSymbolTable) &&
+			CircumstanceNode.compTypeSymbolTable[typeAndColorLeft.type].length > this.compType);
 		for (let itemData of [
 			{
-				text: this.leftExpressionsLines,
+				text: this.leftExpressionLines,
+				bgc: typeAndColorLeft.color,
 				editFunction: () => {
-
+					this.expressionEditFunction(this.leftExpression, expression => {
+						this.leftExpression = expression;
+						this.calc();
+					});
 				}
 			},
 			{
-				text: this.compType == 0 ? '=' : this.compType < 0 ? '<' : this.compType > 0 ? '>' : '?',
+				text: compTypeEnable ? CircumstanceNode.compTypeSymbolTable[typeAndColorLeft.type][this.compType] : 'x',
+				bgc: typeEqual ? typeAndColorLeft.color : 'white',
 				editFunction: () => {
-					popup.search({ dict: { '=': 0, '<': -1, '>': 1 }, type: 'number' }, res => {
+					let dict = compTypeEnable ? Object.fromEntries(Object.entries(CircumstanceNode.compTypeSymbolTable[typeAndColorLeft.type]).map(([index, symbol]) => [symbol, index])) : { 'x': 0 };
+					popup.search({ dict, type: 'number' }, res => {
 						if (res !== null) this.compType = res.value;
 					});
 				}
 			},
 			{
-				text: this.rightExpressionsLines,
+				text: this.rightExpressionLines,
+				bgc: typeAndColorRight.color,
 				editFunction: () => {
-
+					this.expressionEditFunction(this.rightExpression, expression => {
+						this.rightExpression = expression;
+						this.calc();
+					});
 				}
 			}
 		]) {
@@ -249,7 +347,7 @@ class CircumstanceNode extends FlowChartNode {
 
 			let option = {
 				pos: [boxPos[0] + blockPadding, boxPos[1] + blockPadding, boxPos[2] - blockPadding * 2, boxPos[3] - blockPadding * 2],
-				bgc: 'white',
+				bgc: itemData.bgc ? itemData.bgc : 'white',
 				fgc: 'white',
 				text: itemData.text,
 				size: charSize * 0.8,
@@ -295,7 +393,7 @@ class CircumstanceNode extends FlowChartNode {
 		}
 	}
 }
-class AssignmentNode extends FlowChartNode {} // 操作節點
+class AssignmentNode extends FlowChartNode { } // 操作節點
 class DialogNode extends FlowChartNode {
 	static itemGap = 10;
 	constructor({ anchor = [200, 200], image = '', message = '輸入對話內容', appendWords = [], removeWords = [] }) {
@@ -653,7 +751,7 @@ class FlowChart {
 			let unconnectedNodes = [
 				this.startNode,
 				...this.circumstanceNodeList,
-				...this.dialogNodeList, 
+				...this.dialogNodeList,
 				...this.assignmentNodeList
 			].filter(node => !checkedNodes.includes(node));
 			FlowChart.updateStatus(this);
