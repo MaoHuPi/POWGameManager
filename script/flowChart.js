@@ -196,15 +196,15 @@ function expressionEditFunction(defaultValue, mustBeMutable = false, callBack = 
 	popup.search({
 		dict: {
 			...(!mustBeMutable ? {
-				'數字(number)': 'num',
-				'字串(string)': 'str',
-				'位置(position)': 'pos',
-				'布林(bool)': 'tof'
+				'num: 數字(number)': 'num',
+				'str: 字串(string)': 'str',
+				'pos: 位置(position)': 'pos',
+				'tof: 布林(bool)': 'tof'
 			} : {}),
-			'暫時變數(temporary variable)': 'tmp',
-			'遊戲變數(game variable)': 'var',
-			...Object.fromEntries(Object.entries(project.partOfSpeech.n).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvn.${word}`])),
-			...Object.fromEntries(Object.entries(project.partOfSpeech.v).map(([_, word]) => [`詞卡狀態(word state) > ${word}`, `wvv.${word}`]))
+			'tmp: 暫時變數(temporary variable)': 'tmp',
+			'var: 遊戲變數(game variable)': 'var',
+			...Object.fromEntries(Object.entries(project.partOfSpeech.n).map(([_, word]) => [`wvn: 詞卡狀態(word state) > ${word}`, `wvn.${word}`])),
+			...Object.fromEntries(Object.entries(project.partOfSpeech.v).map(([_, word]) => [`wvv: 詞卡狀態(word state) > ${word}`, `wvv.${word}`]))
 		}, defaultValue: defaultValue.key1, type: 'text'
 	}, async res1 => {
 		if (res1 !== null) {

@@ -43,11 +43,13 @@ class Project {
 		partOfSpeech = { n: [], v: [] },
 		cases = [],
 		imageDataDict = {},
-		wordAttribute = { n: [], v: [] }
+		wordAttribute = { n: [], v: [] },
+		init = FlowChart.exportEmpty()
 	} = {}) {
 		this.partOfSpeech = partOfSpeech;
 		this.cases = cases;
 		this.imageDataDict = imageDataDict;
+		this.init = init;
 		Object.keys(partOfSpeech).forEach(POS => {
 			if (!(POS in wordAttribute)) wordAttribute[POS] = [];
 			partOfSpeech[POS].map((n, i) => {
@@ -57,8 +59,8 @@ class Project {
 		this.wordAttribute = wordAttribute;
 	}
 	export() {
-		let { partOfSpeech, cases, imageDataDict, wordAttribute } = this;
-		return { partOfSpeech, cases, imageDataDict, wordAttribute };
+		let { partOfSpeech, cases, imageDataDict, wordAttribute, init } = this;
+		return { partOfSpeech, cases, imageDataDict, wordAttribute, init };
 	}
 	static async fromZip(zip) {
 		if (!zip instanceof JSZip) return;
@@ -123,6 +125,16 @@ project.cases = NDArray([1, 2, 2], ([i1, i2, i3]) => i2 != i3 ? FlowChart.export
 })();
 
 let projectName = 'project.pow';
+function updateEditingFlowChartToProject() {
+	if (sceneVar.sheet?.cellEditing && sceneVar.flowChart?.flowChart) {
+		let cellEditing = sceneVar.sheet.cellEditing;
+		if (cellEditing[0] == -1 && cellEditing[1] == -1 && cellEditing[2] == -1) {
+			project.init = sceneVar.flowChart.flowChart.export();
+		} else {
+			project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+		}
+	}
+}
 async function importProject(file) {
 	let zip = await JSZip.loadAsync(file);
 	project = await Project.fromZip(zip);
@@ -153,15 +165,15 @@ async function openProject() {
 }
 async function saveProject() {
 	if (currentScene == scene_flowChart) {
-		let cellEditing = sceneVar.sheet.cellEditing;
-		project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+		updateEditingFlowChartToProject();
 	} else if (currentScene == scene_attribute) {
 		project.wordAttribute[sceneVar.sheet.wordEditingPOS][sceneVar.sheet.wordEditing] = sceneVar.attribute.attributeData;
 	}
 	await exportProject();
 }
-async function projectSettings() {
-	popup.alert('專案設定功能尚未支援！');
+async function editProjectInit() {
+	sceneVar.sheet.cellEditing = [-1, -1, -1];
+	currentScene = scene_flowChart;
 }
 
 const color = {
@@ -282,6 +294,8 @@ function wordRename({ POS, index }) {
 			}
 		} else {
 			project.partOfSpeech[POS].splice(index, 1, newName);
+			project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"wv${POS}.${oldName}"`, `"wv${POS}.${newName}"`));
+			project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"wv${POS}.${oldName}"`, `"wv${POS}.${newName}"`));
 		}
 	});
 }
@@ -359,10 +373,10 @@ async function allScene() {
 			bgiClip: [16 * 2, 0, 16, 16],
 			mouseClickListener: saveProject
 		},
-		{ // project settings
+		{ // edit project init
 			pos: [header[0] + header[3] * 3, header[1], header[3], header[3]],
 			bgiClip: [16 * 3, 0, 16, 16],
-			mouseClickListener: projectSettings
+			mouseClickListener: editProjectInit
 		}
 	]) {
 		ctx.save();
@@ -751,15 +765,23 @@ async function scene_flowChart() {
 	}
 	if (sceneChange) {
 		let cellEditing = sceneVar.sheet.cellEditing;
-		sceneVar.flowChart.title = [
-			project.partOfSpeech.n[cellEditing[1]],
-			project.partOfSpeech.v[cellEditing[0]],
-			project.partOfSpeech.n[cellEditing[2]]
-		].join(' - ');
-		sceneVar.flowChart.flowChart = new FlowChart({
-			title: sceneVar.flowChart.title,
-			...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
-		});
+		if (cellEditing[0] == -1 && cellEditing[1] == -1 && cellEditing[2] == -1) {
+			sceneVar.flowChart.title = 'project init'
+			sceneVar.flowChart.flowChart = new FlowChart({
+				title: sceneVar.flowChart.title,
+				...project.init
+			});
+		} else {
+			sceneVar.flowChart.title = [
+				project.partOfSpeech.n[cellEditing[1]],
+				project.partOfSpeech.v[cellEditing[0]],
+				project.partOfSpeech.n[cellEditing[2]]
+			].join(' - ');
+			sceneVar.flowChart.flowChart = new FlowChart({
+				title: sceneVar.flowChart.title,
+				...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
+			});
+		}
 	}
 
 	/* warning refresh */
@@ -997,6 +1019,7 @@ async function scene_flowChart() {
 							delete project.imageDataDict[oldName];
 							sceneVar.flowChart.flowChart = new FlowChart({ title: sceneVar.flowChart.title, ...JSON.parse(JSON.stringify(sceneVar.flowChart.flowChart.export()).replaceAll(`"${oldName}"`, `"${newName}"`)) });
 							project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"${oldName}"`, `"${newName}"`));
+							project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"${oldName}"`, `"${newName}"`));
 						}
 					});
 				}
@@ -1094,8 +1117,7 @@ async function scene_flowChart() {
 	if (isHover(mouse, backButton)) {
 		glowEffect(ctx, 'white', 2);
 		if (mouse.click) {
-			let cellEditing = sceneVar.sheet.cellEditing;
-			project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+			updateEditingFlowChartToProject();
 			currentScene = scene_sheet;
 		}
 	}
