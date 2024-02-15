@@ -33,6 +33,9 @@ async function getImage(url) {
 }
 
 /* detect and calculate */
+function vecLength(vec){
+	return Math.sqrt(vec.map(n => Math.pow(n, 2)).reduce((s, n) => s+n))
+}
 function isHover(mouse, [x, y, w, h]) {
 	return mouse.x > x && mouse.y > y && mouse.x < x + w && mouse.y < y + h;
 }

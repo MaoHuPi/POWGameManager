@@ -11,7 +11,7 @@ let pickerTitle = 'POW Game Manager Project',
     // pickerAcceptExtension = ['.pow', '.zip'];
     pickerAcceptExtension = ['.pow'];
 let pickerOptions = {
-    excludeAcceptAllOption: true, 
+    excludeAcceptAllOption: true,
     id: 'POWGameManagerProject',
     types: [
         {
@@ -78,9 +78,9 @@ async function saveFile(dataBuffer, fileName = 'project.pow') {
     try {
         if (!window.fileEntry && 'showSaveFilePicker' in window) {
             window.fileEntry = await window.showSaveFilePicker({ ...pickerOptions, suggestedName: fileName });
-            updateLocalFile(window.fileEntry, dataBuffer);
+            await updateLocalFile(window.fileEntry, dataBuffer);
         } else if (window.fileEntry) {
-            updateLocalFile(window.fileEntry, dataBuffer);
+            await updateLocalFile(window.fileEntry, dataBuffer);
         } else {
             errorFlag = true;
         }
@@ -97,7 +97,7 @@ async function saveFile(dataBuffer, fileName = 'project.pow') {
         dlLink.href = URL.createObjectURL(blob);
         dlLink.click();
     }
-    alert('File Saved!');
+    popup.alert('檔案已儲存！');
 }
 async function openFile() {
     if (window.showOpenFilePicker) {
@@ -105,7 +105,7 @@ async function openFile() {
         if (entry) {
             let file = await entry.getFile();
             window.fileEntry = entry;
-            loadFile(file, 'file', file.name);
+            await loadFile(file, 'file', file.name);
         }
     } else {
         let input = document.createElement('input');
@@ -117,7 +117,7 @@ async function openFile() {
 
             if (input.files && input.files.length > 0) {
                 let file = input.files[0];
-                loadFile(file, 'file', file.name);
+                await loadFile(file, 'file', file.name);
             }
         }
         input.click();
@@ -142,7 +142,7 @@ async function loadFile(arrayBufferOrFile, type = 'arrayBuffer', fileName = 'pro
     //         reader.readAsArrayBuffer(file);
     //     }
     // } else if (type == 'arrayBuffer') {
-    importProject(arrayBufferOrFile);
+    await importProject(arrayBufferOrFile);
     // }
 }
 async function updateLocalFile(entry, content) {

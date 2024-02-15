@@ -169,25 +169,33 @@ class StartNode extends FlowChartNode {
 }
 class CircumstanceNode extends FlowChartNode {
 	static itemGap = 10;
-	constructor({ anchor = [-200, 200], conditionalStatements = [], ifTrue = undefined, ifFalse = undefined }) {
+	constructor({ anchor = [-200, 200], compType = 0, leftExpressions = { key1: 'var', key2: 'myVar' }, rightExpressions = { key1: 'int', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
-		this.conditionalStatements = conditionalStatements;
-		this.ifTrue = undefined;
-		this.ifFalse = undefined;
+		this.compType = compType;
+		this.leftExpressions = leftExpressions;
+		this.rightExpressions = rightExpressions;
+		this.ifTrue = ifTrue;
+		this.ifFalse = ifFalse;
 		this.calc();
 	}
 	export() {
-		let { anchor, conditionalStatements, ifTrue, ifFalse } = this;
-		return { anchor, conditionalStatements, ifTrue, ifFalse };
+		let { anchor, compType, ifTrue, ifFalse } = this;
+		return { anchor, compType, ifTrue, ifFalse };
 	}
 	calc() {
 		let { charSize, padding } = FlowChartNode;
+		charSize *= 0.8;
 		let blockPadding = padding / 2;
+		let buttonWidth = 10 * FlowChartNode.charSize - blockPadding * 2;
+		let sizeData1 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.leftExpressions.key1}: ${this.leftExpressions.key2}` });
+		let sizeData2 = calcSize({ ...FlowChartNode, charSize, padding: blockPadding, sizeBOCS: [buttonWidth / charSize, undefined], text: `${this.rightExpressions.key1}: ${this.rightExpressions.key2}` });
+		this.leftExpressionsLines = sizeData1.lines;
+		this.rightExpressionsLines = sizeData2.lines; ``
 		this.size = [
-			10 * FlowChartNode.charSize + padding * 2,
-			padding * 2 +
-			blockPadding * 2 +
-			((charSize + DialogNode.itemGap) * (this.conditionalStatements.length + 1) - DialogNode.itemGap)
+			Math.max(10 * FlowChartNode.charSize, sizeData1.size[0], sizeData2.size[0]) + padding * 2,
+			padding * 3 +
+			blockPadding * 8 +
+			((charSize) * (1 + sizeData1.lines.length + sizeData2.lines.length))
 		];
 		this.pos = [
 			this.anchor[0] - this.size[0] / 2, this.anchor[1],
@@ -200,7 +208,6 @@ class CircumstanceNode extends FlowChartNode {
 		let padding = FlowChartNode.padding * scale;
 		let blockPadding = padding / 2;
 		let charSize = FlowChartNode.charSize * scale;
-		let itemGap = DialogNode.itemGap * scale;
 		let reCalc = false;
 		drawBox(ctx, {
 			pos,
@@ -209,47 +216,62 @@ class CircumstanceNode extends FlowChartNode {
 			borderWidth: 5 * scale
 		});
 		this.drawTab(ctx, pos, '判斷');
-		let conditionalStatementsPos = [pos[0] + padding, pos[1] + padding, pos[2] - padding * 2, (charSize + itemGap) * (this.conditionalStatements.length + 1) - itemGap + blockPadding * 2];
-		drawBox(ctx, {
-			pos: conditionalStatementsPos,
-			border: 'white',
-			borderWidth: 2 * scale
-		});
-		for (let i = 0; i < this.conditionalStatements.length + 1; i++) {
+		let boxY = pos[1] + padding;
+		for (let itemData of [
+			{
+				text: this.leftExpressionsLines,
+				editFunction: () => {
+
+				}
+			},
+			{
+				text: this.compType == 0 ? '=' : this.compType < 0 ? '<' : this.compType > 0 ? '>' : '?',
+				editFunction: () => {
+					popup.search({ dict: { '=': 0, '<': -1, '>': 1 }, type: 'number' }, res => {
+						if (res !== null) this.compType = res.value;
+					});
+				}
+			},
+			{
+				text: this.rightExpressionsLines,
+				editFunction: () => {
+
+				}
+			}
+		]) {
+			let boxHeight = (charSize * (typeof itemData.text == 'string' ? 1 : itemData.text.length)) + blockPadding * 2;
+			let boxPos = [pos[0] + padding, boxY, pos[2] - padding * 2, boxHeight];
+			drawBox(ctx, {
+				pos: boxPos,
+				border: 'white',
+				borderWidth: 2 * scale
+			});
+
 			let option = {
-				pos: [conditionalStatementsPos[0] + blockPadding, conditionalStatementsPos[1] + blockPadding + (charSize + itemGap) * i, conditionalStatementsPos[2] - blockPadding * 2, charSize],
+				pos: [boxPos[0] + blockPadding, boxPos[1] + blockPadding, boxPos[2] - blockPadding * 2, boxPos[3] - blockPadding * 2],
 				bgc: 'white',
 				fgc: 'white',
-				size: charSize * 0.8
+				text: itemData.text,
+				size: charSize * 0.8,
+				font: FlowChartNode.charFont,
+				padding: charSize * 0.1
 			};
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
-			if (hovered) mouse.down = false;
-			if (i === this.conditionalStatements.length) {
-				option.text = '+';
-				if (hovered && mouse.click) {
-					sceneVar.flowChart.draggingNode = undefined;
-					this.conditionalStatements.push('');
-					reCalc = true;
+			if (hovered) {
+				mouse.down = false;
+				if (mouse.click) {
+					itemData.editFunction();
 					mouse.click = false;
-				}
-			} else {
-				option.text = this.conditionalStatements[i];
-				if (hovered && mouse.DBlClick) {
-					console.log('edit!');
-					mouse.DBlClick = false;
-				}
-				if (hovered && mouse.contextMenu) {
-					sceneVar.flowChart.draggingNode = undefined;
-					this.conditionalStatements.splice(i, 1);
-					reCalc = true;
-					mouse.contextMenu = false;
 				}
 			}
 			ctx.globalAlpha = 0.5;
 			drawBox(ctx, { ...option, text: undefined });
 			ctx.globalAlpha = 1;
 			drawBox(ctx, { ...option, bgc: undefined });
+
+			boxY += boxPos[3] + blockPadding;
 		}
+
 		let dotsPos = this.getDotsScreenPos(pos);
 		this.drawDots(ctx, chart, dotsPos, [0, 1, 3]);
 		if (this.ifTrue) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 1 }, { node: this.ifTrue, dotIndex: 0 }]);
@@ -273,19 +295,20 @@ class CircumstanceNode extends FlowChartNode {
 		}
 	}
 }
+class AssignmentNode extends FlowChartNode {} // 操作節點
 class DialogNode extends FlowChartNode {
 	static itemGap = 10;
-	constructor({ anchor = [200, 200], image = '', message = '......', words = [], operations = [] }) {
+	constructor({ anchor = [200, 200], image = '', message = '輸入對話內容', appendWords = [], removeWords = [] }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
 		this.image = image;
 		this.message = message;
-		this.words = words;
-		this.operations = operations;
+		this.appendWords = appendWords;
+		this.removeWords = removeWords;
 		this.calc();
 	}
 	export() {
-		let { anchor, image, message, words, operations } = this;
-		return { anchor, image, message, words, operations };
+		let { anchor, image, message, appendWords, removeWords } = this;
+		return { anchor, image, message, appendWords, removeWords };
 	}
 	calc() {
 		let { charSize, padding } = FlowChartNode;
@@ -297,7 +320,7 @@ class DialogNode extends FlowChartNode {
 			blockPadding * 7 +
 			size[0] / 1920 * 1080 +
 			size[1]/* size[1] 已含 blockPadding*2 */ +
-			((charSize + DialogNode.itemGap) * (this.words.length + this.operations.length + 1 * 2) - DialogNode.itemGap * 2)
+			((charSize + DialogNode.itemGap) * (this.appendWords.length + this.removeWords.length + 1 * 2) - DialogNode.itemGap * 2)
 		];
 		this.messageLines = lines;
 		this.pos = [
@@ -321,6 +344,10 @@ class DialogNode extends FlowChartNode {
 		this.drawTab(ctx, pos, '對話');
 		let imagePos = [pos[0] + padding, pos[1] + padding, pos[2] - padding * 2, (pos[2] - padding * 2) / 1920 * 1080];
 		let imageBoxText = '';
+		drawBox(ctx, {
+			pos: imagePos,
+			bgc: 'gray'
+		});
 		if (this.image in project.imageDataDict) {
 			ctx.drawImage(project.imageDataDict[this.image].element, ...imagePos);
 		} else {
@@ -369,39 +396,39 @@ class DialogNode extends FlowChartNode {
 				});
 			}
 		}
-		let wordsPos = [messagePos[0], messagePos[1] + messagePos[3] + blockPadding, messagePos[2], (charSize + itemGap) * (this.words.length + 1) - itemGap + blockPadding * 2];
+		let appendWordsPos = [messagePos[0], messagePos[1] + messagePos[3] + blockPadding, messagePos[2], (charSize + itemGap) * (this.appendWords.length + 1) - itemGap + blockPadding * 2];
 		drawBox(ctx, {
-			pos: wordsPos,
+			pos: appendWordsPos,
 			border: 'white',
 			borderWidth: 2 * sceneVar.flowChart.scale
 		});
-		for (let i = 0; i < this.words.length + 1; i++) {
+		for (let i = 0; i < this.appendWords.length + 1; i++) {
 			let option = {
-				pos: [wordsPos[0] + blockPadding, wordsPos[1] + blockPadding + (charSize + itemGap) * i, wordsPos[2] - blockPadding * 2, charSize],
+				pos: [appendWordsPos[0] + blockPadding, appendWordsPos[1] + blockPadding + (charSize + itemGap) * i, appendWordsPos[2] - blockPadding * 2, charSize],
 				bgc: 'white',
 				fgc: 'white',
 				size: charSize * 0.8
 			};
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) mouse.down = false;
-			if (i === this.words.length) {
-				option.text = '+';
+			if (i === this.appendWords.length) {
+				option.text = '[+] 獲取詞卡';
 				if (hovered && mouse.click) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
 					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
 						if (selected !== null) {
-							this.words.push(selected.value);
+							this.appendWords.push(selected.value);
 							this.calc();
 						}
 					});
 				}
 			} else {
-				option.text = this.words[i];
-				option.bgc = project.partOfSpeech.v.includes(this.words[i]) ? color.wordBoxV : color.wordBoxSAndO;
+				option.text = this.appendWords[i];
+				option.bgc = project.partOfSpeech.v.includes(this.appendWords[i]) ? color.wordBoxV : color.wordBoxSAndO;
 				if (hovered && mouse.contextMenu) {
 					sceneVar.flowChart.draggingNode = undefined;
-					this.words.splice(i, 1);
+					this.appendWords.splice(i, 1);
 					reCalc = true;
 					mouse.contextMenu = false;
 				}
@@ -411,38 +438,39 @@ class DialogNode extends FlowChartNode {
 			ctx.globalAlpha = 1;
 			drawBox(ctx, { ...option, bgc: undefined });
 		}
-		let operationsPos = [messagePos[0], wordsPos[1] + wordsPos[3] + blockPadding, messagePos[2], (charSize + itemGap) * (this.operations.length + 1) - itemGap + blockPadding * 2];
+		let removeWordsPos = [messagePos[0], appendWordsPos[1] + appendWordsPos[3] + blockPadding, messagePos[2], (charSize + itemGap) * (this.removeWords.length + 1) - itemGap + blockPadding * 2];
 		drawBox(ctx, {
-			pos: operationsPos,
+			pos: removeWordsPos,
 			border: 'white',
 			borderWidth: 2 * sceneVar.flowChart.scale
 		});
-		for (let i = 0; i < this.operations.length + 1; i++) {
+		for (let i = 0; i < this.removeWords.length + 1; i++) {
 			let option = {
-				pos: [operationsPos[0] + blockPadding, operationsPos[1] + blockPadding + (charSize + itemGap) * i, operationsPos[2] - blockPadding * 2, charSize],
+				pos: [removeWordsPos[0] + blockPadding, removeWordsPos[1] + blockPadding + (charSize + itemGap) * i, removeWordsPos[2] - blockPadding * 2, charSize],
 				bgc: 'white',
 				fgc: 'white',
 				size: charSize * 0.8
 			};
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) mouse.down = false;
-			if (i === this.operations.length) {
-				option.text = '+';
+			if (i === this.removeWords.length) {
+				option.text = '[+] 收回詞卡';
 				if (hovered && mouse.click) {
 					sceneVar.flowChart.draggingNode = undefined;
-					this.operations.push('');
-					reCalc = true;
 					mouse.click = false;
+					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
+						if (selected !== null) {
+							this.removeWords.push(selected.value);
+							this.calc();
+						}
+					});
 				}
 			} else {
-				option.text = this.operations[i];
-				if (hovered && mouse.DBlClick) {
-					console.log('edit!');
-					mouse.DBlClick = false;
-				}
+				option.text = this.removeWords[i];
+				option.bgc = project.partOfSpeech.v.includes(this.removeWords[i]) ? color.wordBoxV : color.wordBoxSAndO;
 				if (hovered && mouse.contextMenu) {
 					sceneVar.flowChart.draggingNode = undefined;
-					this.operations.splice(i, 1);
+					this.removeWords.splice(i, 1);
 					reCalc = true;
 					mouse.contextMenu = false;
 				}
@@ -467,7 +495,8 @@ class FlowChart {
 		return {
 			start: undefined,
 			dialog: {},
-			circumstance: {}
+			circumstance: {},
+			assignment: {}
 		}
 	}
 	static statusMap = new WeakMap();
@@ -487,16 +516,19 @@ class FlowChart {
 		title = 'Title',
 		start = undefined,
 		dialog = {},
-		circumstance = {}
+		circumstance = {},
+		assignment = {}
 	} = {}) {
 		function generateNode(dataList, nodeClass) {
 			return Object.entries(dataList).map(([id, nodeData]) => [id, { data: nodeData, node: new nodeClass(nodeData) }]);
 		}
 		let dialogNodeListWithId = generateNode(dialog, DialogNode);
 		let circumstanceNodeListWithId = generateNode(circumstance, CircumstanceNode);
+		let assignmentNodeListWithId = generateNode(assignment, AssignmentNode);
 		let id2nodeDataList = Object.fromEntries([
 			...dialogNodeListWithId,
-			...circumstanceNodeListWithId
+			...circumstanceNodeListWithId,
+			...assignmentNodeListWithId
 		]);
 		function id2Node(nodeData) {
 			for (let key in nodeData) {
@@ -516,10 +548,15 @@ class FlowChart {
 		this.startNode = new StartNode(id2Node({ text: title, then: start }));
 		this.dialogNodeList = dialogNodeListWithId.map(([_, { data, node }]) => id2NodeBindNode(data, node));
 		this.circumstanceNodeList = circumstanceNodeListWithId.map(([_, { data, node }]) => id2NodeBindNode(data, node));
+		this.assignmentNodeList = assignmentNodeListWithId.map(([_, { data, node }]) => id2NodeBindNode(data, node));
 		this.catch = {};
 	}
 	export() {
-		let node2idList = new Map(Object.entries([...this.dialogNodeList, ...this.circumstanceNodeList]).map(IVPair => [IVPair[1], parseInt(IVPair[0])]))
+		let node2idList = new Map(Object.entries([
+			...this.dialogNodeList,
+			...this.circumstanceNodeList,
+			...this.assignmentNodeList
+		]).map(IVPair => [IVPair[1], parseInt(IVPair[0])]))
 		function node2Id(node) {
 			let nodeId = node2idList.get(node);
 			let nodeData = node.export();
@@ -533,11 +570,17 @@ class FlowChart {
 		return {
 			start: node2Id(this.startNode)[1].then,
 			dialog: Object.fromEntries(this.dialogNodeList.map(node2Id)),
-			circumstance: Object.fromEntries(this.circumstanceNodeList.map(node2Id))
+			circumstance: Object.fromEntries(this.circumstanceNodeList.map(node2Id)),
+			assignment: Object.fromEntries(this.assignmentNodeList.map(node2Id))
 		};
 	}
 	draw({ ctx, chart }) {
-		let nodeList = [this.startNode, ...this.dialogNodeList, ...this.circumstanceNodeList];
+		let nodeList = [
+			this.startNode,
+			...this.dialogNodeList,
+			...this.circumstanceNodeList,
+			...this.assignmentNodeList
+		];
 		sceneVar.flowChart.connections = [];
 		sceneVar.flowChart.nodesDots = new Map();
 
@@ -587,6 +630,8 @@ class FlowChart {
 					return { 1: node.ifTrue, 3: node.ifFalse };
 				} else if (node instanceof DialogNode) {
 					return {}
+				} else if (node instanceof AssignmentNode) {
+					return { 2: node.then };
 				}
 			}
 			let loneDots = [];
@@ -608,7 +653,8 @@ class FlowChart {
 			let unconnectedNodes = [
 				this.startNode,
 				...this.circumstanceNodeList,
-				...this.dialogNodeList
+				...this.dialogNodeList, 
+				...this.assignmentNodeList
 			].filter(node => !checkedNodes.includes(node));
 			FlowChart.updateStatus(this);
 			[this.catch.loneDots, this.catch.unconnectedNodes] = [loneDots, unconnectedNodes]

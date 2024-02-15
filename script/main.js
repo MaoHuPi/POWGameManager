@@ -9,7 +9,13 @@ const tempCvs = {}, tempCtx = {};
 	tempCtx[key] = tempCvs[key].getContext('2d');
 	[tempCvs[key].width, tempCvs[key].height] = [window.innerWidth, window.innerHeight];
 });
-Object.entries({ 'chart': 'gridValue', 'nodeDragging': 'gridTitle' }).forEach(KVPair => {
+Object.entries({
+	'chart': 'gridValue',
+	'nodeDragging': 'gridTitle',
+	'asideList': 'nounList',
+	'map': 'gridValue',
+	'posDragging': 'gridTitle',
+}).forEach(KVPair => {
 	tempCvs[KVPair[0]] = tempCvs[KVPair[1]];
 	tempCtx[KVPair[0]] = tempCtx[KVPair[1]];
 });
@@ -22,7 +28,13 @@ window.addEventListener('resize', () => {
 let CW, CH;
 let currentTime;
 const sceneVar = {};
-sceneVar.global = {};
+function clearSceneVar() {
+	for (let key in sceneVar) {
+		delete sceneVar[key];
+	}
+	sceneVar.global = {};
+}
+clearSceneVar();
 
 const popup = new Popup(ctx);
 
@@ -30,15 +42,23 @@ class Project {
 	constructor({
 		partOfSpeech = { n: [], v: [] },
 		cases = [],
-		imageDataDict = {}
+		imageDataDict = {},
+		wordAttribute = { n: [], v: [] }
 	} = {}) {
 		this.partOfSpeech = partOfSpeech;
 		this.cases = cases;
 		this.imageDataDict = imageDataDict;
+		Object.keys(partOfSpeech).forEach(POS => {
+			if (!(POS in wordAttribute)) wordAttribute[POS] = [];
+			partOfSpeech[POS].map((n, i) => {
+				if (!wordAttribute[POS][i]) wordAttribute[POS][i] = {};
+			})
+		});
+		this.wordAttribute = wordAttribute;
 	}
 	export() {
-		let { partOfSpeech, cases, imageDataDict } = this;
-		return { partOfSpeech, cases, imageDataDict };
+		let { partOfSpeech, cases, imageDataDict, wordAttribute } = this;
+		return { partOfSpeech, cases, imageDataDict, wordAttribute };
 	}
 	static async fromZip(zip) {
 		if (!zip instanceof JSZip) return;
@@ -94,6 +114,9 @@ let project = new Project();
 project.partOfSpeech = {
 	n: ['1', '2'], v: ['a']
 };
+project.wordAttribute = {
+	n: [{}, {}], v: [{}]
+};
 project.cases = NDArray([1, 2, 2], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
 (async () => {
 	project.imageDataDict['headerButton'] = { element: await getImage('image/headerButton.png'), buffer: undefined };
@@ -109,10 +132,36 @@ async function exportProject() {
 	let dataBuffer = await zip.generateAsync({
 		type: 'arrayBuffer',
 	});
-	saveFile(dataBuffer, projectName);
+	await saveFile(dataBuffer, projectName);
 }
 function changeProjectName(newName) {
 	projectName = newName;
+}
+function newProject() {
+	currentScene = scene_sheet;
+	clearSceneVar();
+	project = new Project();
+	window.fileEntry = undefined;
+}
+async function openProject() {
+	let lastProject = project;
+	await openFile();
+	if (project !== lastProject) {
+		currentScene = scene_sheet;
+		clearSceneVar();
+	}
+}
+async function saveProject() {
+	if (currentScene == scene_flowChart) {
+		let cellEditing = sceneVar.sheet.cellEditing;
+		project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
+	} else if (currentScene == scene_attribute) {
+		project.wordAttribute[sceneVar.sheet.wordEditingPOS][sceneVar.sheet.wordEditing] = sceneVar.attribute.attributeData;
+	}
+	await exportProject();
+}
+async function projectSettings() {
+	popup.alert('專案設定功能尚未支援！');
 }
 
 const color = {
@@ -202,13 +251,14 @@ function wordExist(word) {
 	return project.partOfSpeech.n.includes(word) || project.partOfSpeech.v.includes(word);
 }
 function wordAdd({ POS }) {
-	popup.prompt({ text: '請輸入新字卡的名稱：' }, newWord => {
+	popup.prompt({ text: '請輸入新詞卡的名稱：' }, newWord => {
 		if (newWord === null) return;
 		if (wordExist(newWord)) {
-			popup.alert('您輸入的名稱已存在，字卡新增失敗。');
+			popup.alert('您輸入的名稱已存在，詞卡新增失敗。');
 		} else {
 			let oldNLength = project.partOfSpeech.n.length;
 			project.partOfSpeech[POS].push(newWord);
+			project.wordAttribute[POS].push({})
 			if (POS == 'v') {
 				project.cases.push(NDArray([oldNLength, oldNLength], ([i1, i2]) => i1 != i2 ? FlowChart.exportEmpty() : undefined));
 			} else {
@@ -241,6 +291,7 @@ function wordDelete({ POS, index, listName }) {
 	popup.confirm(`確定刪除「${project.partOfSpeech[POS][index]}」？`, res => {
 		if (res) {
 			project.partOfSpeech[POS].splice(index, 1);
+			project.wordAttribute[POS].splice(index, 1);
 			sceneVar.sheet[listName + 'Selected'] = false;
 			if (POS == 'v') {
 				project.cases.splice(index, 1);
@@ -253,8 +304,11 @@ function wordDelete({ POS, index, listName }) {
 		}
 	});
 }
-function wordAttribute() {
-	popup.alert('字卡屬性設定與編輯功能尚未完成，敬請期待！');
+function wordAttribute({ POS, index }) {
+	// popup.alert('詞卡屬性設定與編輯功能尚未完成，敬請期待！');
+	sceneVar.sheet.wordEditingPOS = POS;
+	sceneVar.sheet.wordEditing = index;
+	currentScene = scene_attribute;
 }
 function gotoS({ POS, index }) {
 	if (POS !== 'n') return;
@@ -276,6 +330,67 @@ function gotoO({ POS, index }) {
 }
 
 /* render scene */
+async function allScene() {
+	let header = [0, 0, CW, 70];
+	drawBox(ctx, {
+		pos: header,
+		bgc: '#313131',
+		fgc: 'white',
+		text: '< POW Game Manager >',
+		size: 30
+	});
+	drawPoliigon(ctx, {
+		points: [[header[0], header[1] + header[3] - 5 / 2], [header[0] + header[2], header[1] + header[3] - 5 / 2]],
+		lineWidth: 2,
+		stroke: 'white'
+	});
+
+	for (let option of [
+		{ // new project
+			pos: [header[0], header[1], header[3], header[3]],
+			bgiClip: [0, 0, 16, 16],
+			mouseClickListener: newProject
+		},
+		{ // open project
+			pos: [header[0] + header[3], header[1], header[3], header[3]],
+			bgiClip: [16, 0, 16, 16],
+			mouseClickListener: openProject
+		},
+		{ // save project
+			pos: [header[0] + header[3] * 2, header[1], header[3], header[3]],
+			bgiClip: [16 * 2, 0, 16, 16],
+			mouseClickListener: saveProject
+		},
+		{ // project settings
+			pos: [header[0] + header[3] * 3, header[1], header[3], header[3]],
+			bgiClip: [16 * 3, 0, 16, 16],
+			mouseClickListener: projectSettings
+		}
+	]) {
+		ctx.save();
+		let bgiPos = [0, 0, 0, 0];
+		bgiPos[2] = bgiPos[3] = Math.min(option.pos[2], option.pos[3]) * 0.8;
+		bgiPos[0] = option.pos[0] + (option.pos[2] - bgiPos[2]) / 2;
+		bgiPos[1] = option.pos[1] + (option.pos[3] - bgiPos[3]) / 2;
+		ctx.imageSmoothingEnabled = false;
+		if (isHover(mouse, option.pos)) {
+			glowEffect(ctx, 'white', 20);
+			if (option.mouseClickListener && mouse.click) {
+				option.mouseClickListener();
+			}
+		} else {
+			glowEffect(ctx, 'white', 0);
+		}
+		ctx.drawImage(await getImage('image/headerButton.png'), ...option.bgiClip, ...bgiPos);
+		option = {
+			...option,
+			fgc: 'white',
+			size: 30
+		}
+		drawBox(ctx, option);
+		ctx.restore();
+	}
+}
 async function scene_sheet() {
 	/* init */
 	if (!('sheet' in sceneVar)) {
@@ -580,7 +695,7 @@ async function scene_sheet() {
 					if (mouse.click) {
 						selectedWord = sceneVar.sheet[listName + 'Selected'];
 						if (button.selectFirst && selectedWord === false) {
-							popup.alert(`請先選擇${listPOS == 'v' ? '動詞' : '名詞'}字卡！`);
+							popup.alert(`請先選擇${listPOS == 'v' ? '動詞' : '名詞'}詞卡！`);
 						} else {
 							button.method({ POS: listPOS, index: selectedWord, listName });
 						}
@@ -599,8 +714,8 @@ async function scene_sheet() {
 			borderWidth: 1
 		});
 		drawList({
-			targetCvs: tempCvs.nounList,
-			targetCtx: tempCtx.nounList,
+			targetCvs: tempCvs.asideList,
+			targetCtx: tempCtx.asideList,
 			list: list,
 			getSetScrollY: value => { return value !== undefined ? (sceneVar.sheet.emptyWarningY = value) : sceneVar.sheet.emptyWarningY },
 			itemList: emptyCaseList,
@@ -620,75 +735,7 @@ async function scene_sheet() {
 		lineWidth: 2,
 		stroke: 'white'
 	});
-
-	drawBox(ctx, {
-		pos: header,
-		bgc: '#313131',
-		fgc: 'white',
-		text: '< POW Game Manager >',
-		size: 30
-	});
-	drawPoliigon(ctx, {
-		points: [[header[0], header[1] + header[3] - 5 / 2], [header[0] + header[2], header[1] + header[3] - 5 / 2]],
-		lineWidth: 2,
-		stroke: 'white'
-	});
-
-	for (let option of [
-		{ // new project
-			pos: [header[0], header[1], header[3], header[3]],
-			bgiClip: [0, 0, 16, 16],
-			mouseClickListener: () => {
-				project = new Project();
-			}
-		},
-		{ // open project
-			pos: [header[0] + header[3], header[1], header[3], header[3]],
-			bgiClip: [16, 0, 16, 16],
-			mouseClickListener: () => {
-				openFile();
-			}
-		},
-		{ // save project
-			pos: [header[0] + header[3] * 2, header[1], header[3], header[3]],
-			bgiClip: [16 * 2, 0, 16, 16],
-			mouseClickListener: () => {
-				exportProject();
-			}
-		},
-		{ // project settings
-			pos: [header[0] + header[3] * 3, header[1], header[3], header[3]],
-			bgiClip: [16 * 3, 0, 16, 16],
-			mouseClickListener: () => {
-
-			}
-		}
-	]) {
-		ctx.save();
-		let bgiPos = [0, 0, 0, 0];
-		bgiPos[2] = bgiPos[3] = Math.min(option.pos[2], option.pos[3]) * 0.8;
-		bgiPos[0] = option.pos[0] + (option.pos[2] - bgiPos[2]) / 2;
-		bgiPos[1] = option.pos[1] + (option.pos[3] - bgiPos[3]) / 2;
-		ctx.imageSmoothingEnabled = false;
-		if (isHover(mouse, option.pos)) {
-			glowEffect(ctx, 'white', 20);
-			if (option.mouseClickListener && mouse.click) {
-				option.mouseClickListener();
-			}
-		} else {
-			glowEffect(ctx, 'white', 0);
-		}
-		ctx.drawImage(await getImage('image/headerButton.png'), ...option.bgiClip, ...bgiPos);
-		option = {
-			...option,
-			fgc: 'white',
-			size: 30
-		}
-		drawBox(ctx, option);
-		ctx.restore();
-	}
 }
-
 async function scene_flowChart() {
 	/* init */
 	if (!('flowChart' in sceneVar)) {
@@ -799,11 +846,12 @@ async function scene_flowChart() {
 			border: 'white',
 			borderWidth: 1
 		});
+		let buttonHeight = list[3] / 4;
 		for (let option of [
 			{
-				pos: [list[0], list[1], list[2], list[3] / 3],
+				i: 0,
 				text: '判斷節點',
-				bgiClip: [0, 0, 16, 16],
+				bgiClip: [16 * 0, 0, 16, 16],
 				mouseListener: {
 					type: 'down',
 					func: () => {
@@ -816,9 +864,24 @@ async function scene_flowChart() {
 				}
 			},
 			{
-				pos: [list[0], list[1] + list[3] / 3, list[2], list[3] / 3],
+				i: 1,
+				text: '操作節點',
+				bgiClip: [16 * 1, 0, 16, 16],
+				mouseListener: {
+					type: 'down',
+					func: () => {
+						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new AssignmentNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						sceneVar.flowChart.draggingNode = node;
+						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
+						sceneVar.flowChart.flowChart.circumstanceNodeList.push(node);
+					}
+				}
+			},
+			{
+				i: 2,
 				text: '對話節點',
-				bgiClip: [16, 0, 16, 16],
+				bgiClip: [16 * 2, 0, 16, 16],
 				mouseListener: {
 					type: 'down',
 					func: () => {
@@ -831,9 +894,9 @@ async function scene_flowChart() {
 				}
 			},
 			{
-				pos: [list[0], list[1] + list[3] / 3 * 2, list[2], list[3] / 3],
+				i: 3,
 				text: '節點刪除',
-				bgiClip: [16 * 2, 0, 16, 16],
+				bgiClip: [16 * 3, 0, 16, 16],
 				mouseListener: {
 					type: 'up',
 					func: () => {
@@ -848,6 +911,7 @@ async function scene_flowChart() {
 				}
 			}
 		]) {
+			option.pos = [list[0], list[1] + buttonHeight * option.i, list[2], buttonHeight];
 			ctx.save();
 			let bgiPos = [0, 0, 0, 0];
 			bgiPos[2] = bgiPos[3] = Math.min(option.pos[2], option.pos[3]) * 0.8;
@@ -979,8 +1043,8 @@ async function scene_flowChart() {
 		});
 		let imageList = Object.entries(project.imageDataDict);
 		drawList({
-			targetCvs: tempCvs.nounList,
-			targetCtx: tempCtx.nounList,
+			targetCvs: tempCvs.asideList,
+			targetCtx: tempCtx.asideList,
 			list: list,
 			getSetScrollY: value => { return value !== undefined ? (sceneVar.flowChart.imageListY = value) : sceneVar.flowChart.imageListY },
 			itemList: imageList,
@@ -1004,8 +1068,8 @@ async function scene_flowChart() {
 			borderWidth: 1
 		});
 		drawList({
-			targetCvs: tempCvs.nounList,
-			targetCtx: tempCtx.nounList,
+			targetCvs: tempCvs.asideList,
+			targetCtx: tempCtx.asideList,
 			list: list,
 			getSetScrollY: value => { return value !== undefined ? (sceneVar.flowChart.emptyWarningY = value) : sceneVar.flowChart.emptyWarningY },
 			itemList: loneDots,
@@ -1075,6 +1139,255 @@ async function scene_flowChart() {
 		sceneVar.flowChart.connectEndPos = undefined;
 	}
 }
+async function scene_attribute() {
+	/* init */
+	if (!('attribute' in sceneVar)) {
+		sceneVar.attribute = {};
+		sceneVar.attribute.scale = 1;
+		sceneVar.attribute.mapX = 0;
+		sceneVar.attribute.mapY = 0;
+		sceneVar.attribute.asidePage = 0;
+		sceneVar.attribute.shapeListY = 0;
+		sceneVar.attribute.title = '';
+		sceneVar.attribute.attributeListY = 0;
+	}
+	if (sceneChange) {
+		let wordEditing = project.partOfSpeech[sceneVar.sheet.wordEditingPOS][sceneVar.sheet.wordEditing];
+		sceneVar.attribute.title = `${sceneVar.sheet.wordEditingPOS}: ${wordEditing}`;
+		let attributeData = project.wordAttribute[sceneVar.sheet.wordEditingPOS][sceneVar.sheet.wordEditing];
+		sceneVar.attribute.attributeData = attributeData;
+		attributeData.center = 'center' in attributeData ? attributeData.center : [0, 0];
+	}
+
+	/* draw */
+	drawBox(ctx, {
+		pos: [0, 0, CW, CH],
+		bgc: '#1c1c1c'
+	});
+
+	let header = [0, 0, CW, 70];
+	let aside = [CW - 400, header[3], 400, CH - header[3]];
+
+	let map = [0, header[3], aside[0], CH - header[3]];
+	if (isHover(mouse, map)) {
+		let lastScale = sceneVar.attribute.scale;
+		sceneVar.attribute.scale -= mouse.deltaZoom * Math.abs(mouse.deltaZoom) / 1e4;
+		sceneVar.attribute.scale = Math.min(Math.max(sceneVar.attribute.scale, 0.2), 1.5);
+		let relativeMouse = [
+			mouse.x - (map[0] + map[2] / 2) - (sceneVar.attribute.mapX),
+			mouse.y - (map[1] + map[3] / 2) - (sceneVar.attribute.mapY)
+		];
+		sceneVar.attribute.mapX += relativeMouse[0] - relativeMouse[0] / lastScale * sceneVar.attribute.scale;
+		sceneVar.attribute.mapY += relativeMouse[1] - relativeMouse[1] / lastScale * sceneVar.attribute.scale;
+		sceneVar.attribute.mapX -= mouse.deltaX / 2;
+		sceneVar.attribute.mapY -= mouse.deltaY / 2;
+	}
+
+	drawBox(ctx, {
+		pos: aside,
+		bgc: '#1e1e1e'
+	});
+	let pageButtonHeight = 50;
+	[
+		{
+			pos: [aside[0], aside[1], aside[2] / 1, pageButtonHeight],
+			text: '詞卡屬性',
+		}
+	].map((pageButton, i) => {
+		pageButton.size = 20;
+		if (i == sceneVar.attribute.asidePage) {
+			pageButton.fgc = 'white';
+			pageButton.bgc = 'transparent';
+		} else {
+			pageButton.fgc = 'gray';
+			pageButton.bgc = '#3e3e3e';
+		}
+		if (isHover(mouse, pageButton.pos) && mouse.click) {
+			sceneVar.attribute.asidePage = i;
+		}
+		drawBox(ctx, pageButton);
+	});
+	let asidePadding = 20;
+	let wordHeight = 30, wordGap = 5;
+	if (sceneVar.attribute.asidePage == 0) {
+		let list = [aside[0] + asidePadding, aside[1] + pageButtonHeight + asidePadding, aside[2] - asidePadding * 2, (aside[3] - pageButtonHeight) - asidePadding * 2];
+		drawBox(ctx, {
+			pos: list,
+			bgc: color.buttonBgc,
+			border: 'white',
+			borderWidth: 1
+		});
+		let attributeOptions = sceneVar.sheet.wordEditingPOS == 'n' ? [
+			{ text: '可以移動', key: 'moveable' },
+			{ text: '可以開關', key: 'openable' },
+			{ text: '屬於區域', key: 'isArea' }
+		] : [
+			{ text: '屬於被動（雙受詞）', key: 'isPassive' } // 如：我 - 「被給予」 - 信封
+		];
+		drawList({
+			targetCvs: tempCvs.asideList,
+			targetCtx: tempCtx.asideList,
+			list: list,
+			getSetScrollY: value => { return value !== undefined ? (sceneVar.attribute.attributeListY = value) : sceneVar.attribute.attributeListY },
+			itemList: attributeOptions,
+			itemBgc: 'white',
+			itemTextFormat: ({ item }) => `[${sceneVar.attribute.attributeData[item.key] ? 'v' : 'x'}] ${item.text}`,
+			itemClickListener: ({ item }) => {
+				sceneVar.attribute.attributeData[item.key] = !sceneVar.attribute.attributeData[item.key];
+			},
+			itemSelected: ({ item }) => sceneVar.attribute.attributeData[item.key],
+			listPadding: 10, itemHeight: 30, itemGap: 5,
+		});
+	}
+	drawPoliigon(ctx, {
+		points: [[aside[0] + 5 / 2, aside[1]], [aside[0] + 5 / 2, aside[1] + aside[3]]],
+		lineWidth: 2,
+		stroke: 'white'
+	});
+
+	tempCtx.map.clearRect(0, 0, CW, CH);
+	let editingWordPos;
+	function toScreenPos({ center, size }) {
+		let pos = [center[0] - size[0] / 2, center[1] - size[1] / 2, size[0], size[1]];
+		pos = pos.map(n => n * sceneVar.attribute.scale);
+		pos[0] += map[0] + map[2] / 2 + sceneVar.attribute.mapX;
+		pos[1] += map[1] + map[3] / 2 + sceneVar.attribute.mapY;
+		return pos;
+	}
+	let dotOption = {
+		bgc: 'gray'
+	}, areaOption = {
+		bgc: 'transparent',
+		border: 'gray',
+		borderWidth: 5 * sceneVar.attribute.scale
+	};
+	for (let i = 0; i < project.wordAttribute.n.length; i++) {
+		let word = project.partOfSpeech.n[i];
+		let wordData = project.wordAttribute.n[i];
+		let isEditingWord = (wordData === sceneVar.attribute.attributeData);
+		if (!('center' in wordData)) wordData.center = [0, 0];
+		areaOption.border = isEditingWord ? 'white' : 'gray';
+		dotOption.bgc = isEditingWord ? 'white' : 'gray';
+		let size;
+		let option = {};
+		if (wordData.isArea) {
+			if (!('size' in wordData)) wordData.size = [50, 50];
+			size = wordData.size;
+			option = areaOption;
+		} else {
+			if ('size' in wordData) delete wordData.size;
+			size = [10, 10];
+			option = dotOption;
+		}
+		let wordPos = toScreenPos({ center: wordData.center, size });
+		drawBox(tempCtx.map, { ...option, pos: wordPos });
+		if (isEditingWord) {
+			editingWordPos = wordPos;
+			if (wordData.isArea) {
+				if (!('size' in wordData)) wordData.size = [20, 20];
+				drawBox(tempCtx.map, {
+					...dotOption,
+					pos: toScreenPos({ center: wordData.center, size: [10, 10] })
+				});
+			}
+		}
+	}
+	ctx.drawImage(tempCvs.map, ...map, ...map);
+
+	/* edit center and size of editing word data */
+	let wordData = sceneVar.attribute.attributeData;
+	if (sceneVar.sheet.wordEditingPOS === 'n' && mouse.down) {
+		let halfSize = [editingWordPos[2] / 2, editingWordPos[3] / 2];
+		let center = [editingWordPos[0] + halfSize[0], editingWordPos[1] + halfSize[1]];
+		let toCursor = [mouse.x - center[0], mouse.y - center[1]];
+		if (wordData.isArea) {
+			function getCrossPoint(vec, [p1, p2] /* relative vertical or horizontal line */) {
+				let isVertical = p1[0] == p2[0];
+				let crossPoint = [0, 0];
+				let i1 = isVertical ? 0 : 1, i2 = isVertical ? 1 : 0;
+				crossPoint[i1] = p1[i1];
+				crossPoint[i2] = crossPoint[i1] / vec[i1] * vec[i2];
+				if (
+					Math.max(p1[i2], p2[i2], crossPoint[i2]) === crossPoint[i2] ||
+					Math.min(p1[i2], p2[i2], crossPoint[i2]) === crossPoint[i2]
+				) return;
+				return crossPoint;
+			}
+			let relativePoints = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([wRate, hRate]) => [halfSize[0] * wRate, halfSize[1] * hRate]);
+			for (let i = 0; i < relativePoints.length; i++) {
+				let crossPoint = getCrossPoint(toCursor, [relativePoints[i], relativePoints[(i + 1) % relativePoints.length]]);
+				if (crossPoint) {
+					let cursorToEdgeDistance = vecLength([crossPoint[0] - toCursor[0], crossPoint[1] - toCursor[1]]);
+					if (cursorToEdgeDistance <= 10) sceneVar.attribute.areaDraggingEdge = i;
+				}
+			}
+		}
+		if (!wordData.isArea || (wordData.isArea && sceneVar.attribute.areaDraggingEdge === undefined)) {
+			if (vecLength(toCursor) <= 10) sceneVar.attribute.areaDraggingCenter = true;
+		}
+	} else { // else => !mouse.down
+		let mapMousePos = [
+			mouse.x - (map[0] + map[2] / 2 + sceneVar.attribute.mapX),
+			mouse.y - (map[1] + map[3] / 2 + sceneVar.attribute.mapY)
+		].map(n => n / sceneVar.attribute.scale);
+		if (wordData.isArea && sceneVar.attribute.areaDraggingEdge !== undefined) {
+			let edgeIsVertical = (sceneVar.attribute.areaDraggingEdge % 2 == 1);
+			let targetIndex = edgeIsVertical ? 0 : 1;
+			wordData.size[targetIndex] = Math.abs(mapMousePos[targetIndex] - wordData.center[targetIndex]) * 2;
+			if (mouse.up) sceneVar.attribute.areaDraggingEdge = undefined;
+		} else if (sceneVar.attribute.areaDraggingCenter) {
+			wordData.center = mapMousePos;
+			if (mouse.up) sceneVar.attribute.areaDraggingCenter = false;
+		}
+	}
+
+	let backButton = [map[0] + 20, map[1] + 20, 50, 50];
+	ctx.save();
+	if (isHover(mouse, backButton)) {
+		glowEffect(ctx, 'white', 2);
+		if (mouse.click) {
+			project.wordAttribute[sceneVar.sheet.wordEditingPOS][sceneVar.sheet.wordEditing] = sceneVar.attribute.attributeData;
+			currentScene = scene_sheet;
+		}
+	}
+	drawBox(ctx, {
+		pos: backButton,
+		bgc: color.buttonBgc,
+		fgc: 'white',
+		text: '<-',
+		size: 30,
+		border: 'gray',
+		borderWidth: 2
+	});
+	ctx.restore();
+	drawBox(ctx, {
+		pos: [map[0] + (map[2] - map[2] / 2) / 2, backButton[1], map[2] / 2, backButton[3]],
+		bgc: color.buttonBgc,
+		fgc: 'white',
+		text: sceneVar.attribute.title,
+		size: 30,
+	});
+
+	drawBox(ctx, {
+		pos: header,
+		bgc: '#313131',
+		fgc: 'white',
+		text: '< POW Game Manager >',
+		size: 30
+	});
+	drawPoliigon(ctx, {
+		points: [[header[0], header[1] + header[3] - 5 / 2], [header[0] + header[2], header[1] + header[3] - 5 / 2]],
+		lineWidth: 2,
+		stroke: 'white'
+	});
+
+	// if (mouse.up) {
+	// 	sceneVar.flowChart.connectStartData = undefined;
+	// 	sceneVar.flowChart.connectStartPos = undefined;
+	// 	sceneVar.flowChart.connectEndData = undefined;
+	// 	sceneVar.flowChart.connectEndPos = undefined;
+	// }
+}
 
 /* main loop */
 async function loop() {
@@ -1088,6 +1401,7 @@ async function loop() {
 			lastScene = currentScene;
 		}
 		await currentScene();
+		await allScene();
 		sceneChange = false;
 		popup.setEvent({ mouse, keyboard }, false);
 		popup.draw();
