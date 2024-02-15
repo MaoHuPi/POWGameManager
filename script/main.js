@@ -313,6 +313,8 @@ function wordDelete({ POS, index, listName }) {
 					vList.forEach(sList => sList.splice(index, 1));
 				});
 			}
+			project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"wv${POS}.${oldName}"`, `"str"`));
+			project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"wv${POS}.${oldName}"`, `"str"`));
 		}
 	});
 }
@@ -921,7 +923,11 @@ async function scene_flowChart() {
 					type: 'up',
 					func: () => {
 						if (sceneVar.flowChart.draggingNode) {
-							[sceneVar.flowChart.flowChart.circumstanceNodeList, sceneVar.flowChart.flowChart.dialogNodeList].forEach(nodeList => {
+							[
+								sceneVar.flowChart.flowChart.circumstanceNodeList, 
+								sceneVar.flowChart.flowChart.dialogNodeList, 
+								sceneVar.flowChart.flowChart.assignmentNodeList
+							].forEach(nodeList => {
 								if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
 									nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
 								}
