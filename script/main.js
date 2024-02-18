@@ -44,12 +44,14 @@ class Project {
 		cases = [],
 		imageDataDict = {},
 		wordAttribute = { n: [], v: [] },
-		init = FlowChart.exportEmpty()
+		init = FlowChart.exportEmpty(),
+		defaultCase = FlowChart.exportEmpty()
 	} = {}) {
 		this.partOfSpeech = partOfSpeech;
 		this.cases = cases;
 		this.imageDataDict = imageDataDict;
 		this.init = init;
+		this.defaultCase = defaultCase;
 		Object.keys(partOfSpeech).forEach(POS => {
 			if (!(POS in wordAttribute)) wordAttribute[POS] = [];
 			partOfSpeech[POS].map((n, i) => {
@@ -59,8 +61,8 @@ class Project {
 		this.wordAttribute = wordAttribute;
 	}
 	export() {
-		let { partOfSpeech, cases, imageDataDict, wordAttribute, init } = this;
-		return { partOfSpeech, cases, imageDataDict, wordAttribute, init };
+		let { partOfSpeech, cases, imageDataDict, wordAttribute, init, defaultCase } = this;
+		return { partOfSpeech, cases, imageDataDict, wordAttribute, init, defaultCase };
 	}
 	static async fromZip(zip) {
 		if (!zip instanceof JSZip) return;
@@ -130,6 +132,8 @@ function updateEditingFlowChartToProject() {
 		let cellEditing = sceneVar.sheet.cellEditing;
 		if (cellEditing[0] == -1 && cellEditing[1] == -1 && cellEditing[2] == -1) {
 			project.init = sceneVar.flowChart.flowChart.export();
+		} else if (cellEditing[0] == -2 && cellEditing[1] == -2 && cellEditing[2] == -2) {
+			project.defaultCase = sceneVar.flowChart.flowChart.export();
 		} else {
 			project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]] = sceneVar.flowChart.flowChart.export();
 		}
@@ -172,7 +176,15 @@ async function saveProject() {
 	await exportProject();
 }
 async function editProjectInit() {
+	updateEditingFlowChartToProject();
 	sceneVar.sheet.cellEditing = [-1, -1, -1];
+	lastScene = scene_sheet;
+	currentScene = scene_flowChart;
+}
+async function editProjectDefaultCase() {
+	updateEditingFlowChartToProject();
+	sceneVar.sheet.cellEditing = [-2, -2, -2];
+	lastScene = scene_sheet;
 	currentScene = scene_flowChart;
 }
 
@@ -294,8 +306,9 @@ function wordRename({ POS, index }) {
 			}
 		} else {
 			project.partOfSpeech[POS].splice(index, 1, newName);
-			project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"wv${POS}.${oldName}"`, `"wv${POS}.${newName}"`));
-			project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"wv${POS}.${oldName}"`, `"wv${POS}.${newName}"`));
+			['cases', 'init', 'defaultCase'].forEach(casesKey => {
+				project[casesKey] = JSON.parse(JSON.stringify(project[casesKey]).replaceAll(`"wv${POS}.${oldName}"`, `"wv${POS}.${newName}"`));
+			});
 		}
 	});
 }
@@ -313,8 +326,9 @@ function wordDelete({ POS, index, listName }) {
 					vList.forEach(sList => sList.splice(index, 1));
 				});
 			}
-			project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"wv${POS}.${oldName}"`, `"str"`));
-			project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"wv${POS}.${oldName}"`, `"str"`));
+			['cases', 'init', 'defaultCase'].forEach(casesKey => {
+				project[casesKey] = JSON.parse(JSON.stringify(project[casesKey]).replaceAll(`"wv${POS}.${oldName}"`, `"str"`));
+			});
 		}
 	});
 }
@@ -379,6 +393,11 @@ async function allScene() {
 			pos: [header[0] + header[3] * 3, header[1], header[3], header[3]],
 			bgiClip: [16 * 3, 0, 16, 16],
 			mouseClickListener: editProjectInit
+		},
+		{ // edit project default case
+			pos: [header[0] + header[3] * 4, header[1], header[3], header[3]],
+			bgiClip: [16 * 4, 0, 16, 16],
+			mouseClickListener: editProjectDefaultCase
 		}
 	]) {
 		ctx.save();
@@ -768,10 +787,16 @@ async function scene_flowChart() {
 	if (sceneChange) {
 		let cellEditing = sceneVar.sheet.cellEditing;
 		if (cellEditing[0] == -1 && cellEditing[1] == -1 && cellEditing[2] == -1) {
-			sceneVar.flowChart.title = 'project init'
+			sceneVar.flowChart.title = 'project init';
 			sceneVar.flowChart.flowChart = new FlowChart({
 				title: sceneVar.flowChart.title,
 				...project.init
+			});
+		} else if (cellEditing[0] == -2 && cellEditing[1] == -2 && cellEditing[2] == -2) {
+			sceneVar.flowChart.title = 'project default case';
+			sceneVar.flowChart.flowChart = new FlowChart({
+				title: sceneVar.flowChart.title,
+				...project.defaultCase
 			});
 		} else {
 			sceneVar.flowChart.title = [
@@ -924,8 +949,8 @@ async function scene_flowChart() {
 					func: () => {
 						if (sceneVar.flowChart.draggingNode) {
 							[
-								sceneVar.flowChart.flowChart.circumstanceNodeList, 
-								sceneVar.flowChart.flowChart.dialogNodeList, 
+								sceneVar.flowChart.flowChart.circumstanceNodeList,
+								sceneVar.flowChart.flowChart.dialogNodeList,
 								sceneVar.flowChart.flowChart.assignmentNodeList
 							].forEach(nodeList => {
 								if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
@@ -1024,8 +1049,9 @@ async function scene_flowChart() {
 							project.imageDataDict[newName] = selectedImageData;
 							delete project.imageDataDict[oldName];
 							sceneVar.flowChart.flowChart = new FlowChart({ title: sceneVar.flowChart.title, ...JSON.parse(JSON.stringify(sceneVar.flowChart.flowChart.export()).replaceAll(`"${oldName}"`, `"${newName}"`)) });
-							project.cases = JSON.parse(JSON.stringify(project.cases).replaceAll(`"${oldName}"`, `"${newName}"`));
-							project.init = JSON.parse(JSON.stringify(project.init).replaceAll(`"${oldName}"`, `"${newName}"`));
+							['cases', 'init', 'defaultCase'].forEach(casesKey => {
+								project[casesKey] = JSON.parse(JSON.stringify(project[casesKey]).replaceAll(`"${oldName}"`, `"${newName}"`));
+							});
 						}
 					});
 				}

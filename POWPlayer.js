@@ -1,4 +1,11 @@
-let POWPlayer = (() => {
+/*
+ * 2024 (c) MaoHuPi
+ * POWGameManager/POWPlayer.js
+ * v1.0.0
+ * 用以載入POW遊戲劇情專案檔，並處理遊戲過程中的邏輯判斷與變數存儲
+ */
+
+const POWPlayer = (() => {
 	const cvsDataUrlHead = document.createElement('canvas').toDataURL('image/png').split(',')[0] + ',';
 	class POWProject {
 		constructor({
@@ -6,12 +13,14 @@ let POWPlayer = (() => {
 			cases = [],
 			imageDataDict = {},
 			wordAttribute = { n: [], v: [] },
-			init = FlowChart.exportEmpty()
+			init = FlowChart.exportEmpty(),
+			defaultCase = FlowChart.exportEmpty(),
 		} = {}) {
 			this.partOfSpeech = partOfSpeech;
 			this.cases = cases;
 			this.imageDataDict = imageDataDict;
 			this.init = init;
+			this.defaultCase = defaultCase;
 			Object.keys(partOfSpeech).forEach(POS => {
 				if (!(POS in wordAttribute)) wordAttribute[POS] = [];
 				partOfSpeech[POS].map((n, i) => {
@@ -64,7 +73,7 @@ let POWPlayer = (() => {
 				};
 				if (['tmp', 'var'].includes(key1)) {
 					type = key2.toString().slice(0, 3); // toString 以免出現非字串的 key2
-					type = basicType.includes(type) ? basicType : undefined;
+					type = basicType.includes(type) ? type : undefined;
 				} else {
 					let propTypeMap = {
 						'position': 'pos',
@@ -75,7 +84,7 @@ let POWPlayer = (() => {
 				return { type, value, overrideFunc };
 			}
 		}
-		#pos2TwoDots = function (pos) {
+		#pos2TwoPoints = function (pos) {
 			if (!('center' in pos)) pos.center = [0, 0];
 			if (!('size' in pos)) pos.size = [0, 0];
 			return [
@@ -102,7 +111,7 @@ let POWPlayer = (() => {
 				flowChartData.initialized = true;
 			}
 
-			let returnDialog = {};
+			let returnDialog = undefined;
 			let nextNodeId = flowChartData.start;
 			while (nextNodeId !== undefined) {
 				let nodeData = flowChartData.nodeDataDict[nextNodeId];
@@ -119,32 +128,60 @@ let POWPlayer = (() => {
 							switch (leftExpressionData.type) {
 								case 'num':
 									newValue =
-										nodeData.compType == 0 ? rightExpressionData.value :
-											nodeData.compType == 1 ? leftExpressionData.value + rightExpressionData.value :
-												nodeData.compType == 2 ? leftExpressionData.value * rightExpressionData.value :
-													nodeData.compType == 3 ? Math.pow(leftExpressionData.value, rightExpressionData.value) :
-														undefined;
+										nodeData.operateType == 0 ? rightExpressionData.value :
+											nodeData.operateType == 1 ? leftExpressionData.value + rightExpressionData.value :
+												nodeData.operateType == 2 ? leftExpressionData.value * rightExpressionData.value :
+													nodeData.operateType == 3 ? Math.pow(leftExpressionData.value, rightExpressionData.value) :
+														nodeData.operateType == 4 ? leftExpressionData.value % rightExpressionData.value :
+															undefined;
 									break;
 								case 'str':
 									newValue =
-										nodeData.compType == 0 ? rightExpressionData.value :
-											nodeData.compType == 1 ? leftExpressionData.value + rightExpressionData.value :
+										nodeData.operateType == 0 ? rightExpressionData.value :
+											nodeData.operateType == 1 ? leftExpressionData.value + rightExpressionData.value :
 												undefined;
 									break;
 								case 'pos':
 									newValue =
-										nodeData.compType == 0 ? rightExpressionData.value :
-											nodeData.compType == 1 ? { center: leftExpressionData.value.map((n, i) => n + rightExpressionData.value[i]), size: leftExpressionData.value.size } :
-												nodeData.compType == 2 ? { center: rightExpressionData.value.center, size: leftExpressionData.value.size } :
-													nodeData.compType == 3 ? { center: leftExpressionData.value.center, size: rightExpressionData.value.size } :
-														undefined;
+										nodeData.operateType == 0 ? rightExpressionData.value :
+											nodeData.operateType == 1 ? { center: leftExpressionData.value.map((n, i) => n + rightExpressionData.value[i]), size: leftExpressionData.value.size } :
+												nodeData.operateType == 2 ? { center: rightExpressionData.value.center, size: leftExpressionData.value.size } :
+													nodeData.operateType == 3 ? { center: leftExpressionData.value.center, size: rightExpressionData.value.size } :
+														nodeData.operateType == 4 ? (() => {
+															function vecLength(vec) { // from POWGameManager/script/basic.js
+																return Math.sqrt(vec.map(n => Math.pow(n, 2)).reduce((s, n) => s + n))
+															}
+															let rtd = this.#pos2TwoPoints(rightExpressionData.value);
+															let lc = leftExpressionData.value.center,
+																rc = rightExpressionData.value.center;
+															let pos2Points = [
+																[rtd[0], rtd[1]],
+																[rtd[2], rtd[1]],
+																[rtd[2], rtd[3]],
+																[rtd[0], rtd[3]],
+															]
+															let ntp = pos2Points
+																.map(point => vecLength(lc.map((n, i) => n - point[i])))
+																.map((distance, i) => [distance, i])
+																.sort((a, b) => a[0] - b[0])
+																.slice(0, 2)
+																.map(DIPair => pos2Points[DIPair[1]]); // nearest two points
+															let i1 = ntp[0][0] == ntp[1][0] ? 0 : 1,
+																i2 = i1 == 0 ? 1 : 0;
+															let newCenter = [0, 0];
+															newCenter[i2] = rc[i2] + (lc[i2] - rc[i2]) / (lc[i1] - rc[i1]) * (rc[i1] - ntp[0][i1]);
+															newCenter[i1] = ntp[0][i1];
+															newCenter = newCenter.map((n, i) => (n + rc[i]) / 2);
+															return { center: newCenter, size: leftExpressionData.value.size };
+														})() :
+															undefined;
 									break;
 								case 'tof':
 									newValue =
-										nodeData.compType == 0 ? rightExpressionData.value :
-											nodeData.compType == 1 ? leftExpressionData.value | rightExpressionData.value :
-												nodeData.compType == 2 ? leftExpressionData.value & rightExpressionData.value :
-													nodeData.compType == 3 ? leftExpressionData.value ^ rightExpressionData.value :
+										nodeData.operateType == 0 ? rightExpressionData.value :
+											nodeData.operateType == 1 ? leftExpressionData.value | rightExpressionData.value :
+												nodeData.operateType == 2 ? leftExpressionData.value & rightExpressionData.value :
+													nodeData.operateType == 3 ? leftExpressionData.value ^ rightExpressionData.value :
 														undefined;
 									break;
 							}
@@ -176,8 +213,8 @@ let POWPlayer = (() => {
 													undefined;
 									break;
 								case 'pos':
-									let ltd = this.#pos2TwoDots(leftExpressionData.value), // left expression pos 2 two dots
-										rtd = this.#pos2TwoDots(rightExpressionData.value); // right expression pos 2 two dots
+									let ltd = this.#pos2TwoPoints(leftExpressionData.value), // left expression pos 2 two dots
+										rtd = this.#pos2TwoPoints(rightExpressionData.value); // right expression pos 2 two dots
 									cmp =
 										nodeData.compType == 0 ? (ltd[0] == rtd[0] && ltd[1] == rtd[1] && ltd[2] == rtd[2] && ltd[3] == rtd[3]) :
 											nodeData.compType == 1 ? (ltd[0] > rtd[0] && ltd[1] > rtd[1] && ltd[2] < rtd[2] && ltd[3] < rtd[3]) :
@@ -198,31 +235,41 @@ let POWPlayer = (() => {
 						break;
 				}
 			}
-			return {
-				image: this.#project.imageDataDict[returnDialog.image].element,
-				message: returnDialog.message,
-				appendWords: returnDialog.appendWords,
-				removeWords: returnDialog.removeWords
-			};
+			if (returnDialog) {
+				return {
+					image: returnDialog.image in this.#project.imageDataDict ? this.#project.imageDataDict[returnDialog.image].element : undefined,
+					message: returnDialog.message,
+					appendWords: returnDialog.appendWords,
+					removeWords: returnDialog.removeWords
+				};
+			} else return this.#runFlowChart(this.#project.defaultCase);
 		}
 		constructor() { }
-		async load(source) {
-			if (source instanceof POWProject) {
-				this.#project = source;
-			} else if (source instanceof File) {
-				let zip = await JSZip.loadAsync(source);
-				this.#project = await POWProject.fromZip(zip);
-			} else if (typeof source == 'string') {
-				let xhr = new XMLHttpRequest();
-				xhr.addEventListener('load', async () => {
-					let zip = await JSZip.loadAsync(xhr.response);
+		load(source) {
+			return new Promise(async resolve => {
+				if (source instanceof POWProject) {
+					this.#project = source;
+					resolve();
+				} else if (source instanceof File) {
+					let zip = await JSZip.loadAsync(source);
 					this.#project = await POWProject.fromZip(zip);
-				});
-				xhr.responseType = 'arraybuffer';
-				xhr.overrideMimeType('application/zip');
-				xhr.open('GET', source);
-				xhr.send();
-			} else throw Error('不支援此格式！');
+					resolve();
+				} else if (typeof source == 'string') {
+					let xhr = new XMLHttpRequest();
+					xhr.addEventListener('load', async () => {
+						let zip = await JSZip.loadAsync(xhr.response);
+						this.#project = await POWProject.fromZip(zip);
+						resolve();
+					});
+					xhr.responseType = 'arraybuffer';
+					xhr.overrideMimeType('application/zip');
+					xhr.open('GET', source);
+					xhr.send();
+				} else {
+					throw Error('不支援此格式！');
+					resolve();
+				};
+			});
 		}
 		init() {
 			if (!this.#project) throw Error('播放器尚未載入專案！');
@@ -240,7 +287,18 @@ let POWPlayer = (() => {
 			[s, o] = [s, o].map(word => this.#project.partOfSpeech.n.indexOf(word));
 			v = this.#project.partOfSpeech.v.indexOf(v);
 			if ([s, v, o].includes(-1)) throw Error('輸入了未定義的詞卡！');
-			return this.#runFlowChart(this.#project.cases[v][s][o]);
+			let caseData = this.#project.cases[v][s][o];
+			if (caseData == undefined) throw Error('主、受詞不得相同！');
+			return this.#runFlowChart(caseData.start != undefined ? caseData : this.#project.defaultCase);
+		}
+		getPOSDict() {
+			let POSDict = {};
+			['n', 'v'].forEach(POS => {
+				this.#project.partOfSpeech[POS].forEach(word => {
+					POSDict[word] = POS;
+				});
+			});
+			return POSDict;
 		}
 	}
 	return POWPlayer;

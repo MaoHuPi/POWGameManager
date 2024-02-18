@@ -101,3 +101,12 @@
 ## 2024/02/18 10:35 [MaoHuPi]
 
 1. 完成`POWPlayer.js`節點執行
+
+## 2024/02/18 15:51 [MaoHuPi]
+
+1. 新增`defaultCase`按鈕與切換功能
+2. 使在`init`、`defaultCase`間切換時重新載入正確的`flowChart`
+3. `POWPlayer.js`v1.0.0，已可正常調用來使用遊戲核心功能
+4. 刪除測試用`project`
+5. 新增`pos`類型的`goto`操作
+5. 新增`num`類型的`%=`操作

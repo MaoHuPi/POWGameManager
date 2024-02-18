@@ -23,3 +23,4 @@
 - [ ] 右上游標hover element說明框
 - [ ] word overflow 問題 (詞卡表、對話節點(畫在tempCvs上，再統一clip))
 - [x] POWPlayer.js
+- [ ] 節點選擇與拷貝

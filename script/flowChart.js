@@ -228,11 +228,10 @@ function expressionEditFunction(defaultValue, mustBeMutable = false, callBack = 
 								try {
 									value = JSON.parse(value);
 								} catch (e) { }
-								if (Array.isArray(value)) {
-									value = new Array(4).fill(0)
-										.map((n, i) => value[i] !== undefined ? value[i] : n);
-								} else {
-									value = [0, 0];
+								if ('center' in value || 'size' in value) {
+									let center = 'center' in value ? value.center : [0, 0],
+										size = 'size' in value ? value.size : [0, 0];
+									value = { center, size };
 								}
 								break;
 						}
@@ -428,9 +427,9 @@ class CircumstanceNode extends FlowChartNode {
 }
 class AssignmentNode extends FlowChartNode {
 	static operateTypeSymbolTable = {
-		num: ['=', '+=', '*=', '^='],
+		num: ['=', '+=', '*=', '^=', '%='],
 		str: ['=', '+='],
-		pos: ['=', 'center +=', 'center =', 'size ='],
+		pos: ['=', 'center +=', 'center =', 'size =', 'goto'],
 		tof: ['=', '|=', '&=', '^='],
 	}
 	constructor({ anchor = [-200, 200], operateType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, then = undefined }) {
@@ -500,7 +499,7 @@ class AssignmentNode extends FlowChartNode {
 				text: operateTypeEnable ? AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type][this.operateType] : 'x',
 				bgc: typeEqual ? typeAndColorLeft.color : 'white',
 				editFunction: () => {
-					let dict = operateTypeEnable ? Object.fromEntries(Object.entries(AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type]).map(([index, symbol]) => [symbol, index])) : { 'x': 0 };
+					let dict = operateTypeEnable ? Object.fromEntries(Object.entries(AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type]).map(([index, symbol]) => [symbol, parseInt(index)])) : { 'x': 0 };
 					popup.search({ dict, type: 'number' }, res => {
 						if (res !== null) this.operateType = res.value;
 					});
@@ -802,7 +801,7 @@ class FlowChart {
 		]);
 		function id2Node(nodeData) {
 			for (let key in nodeData) {
-				if (Number.isInteger(nodeData[key])) {
+				if (['then', 'ifTrue', 'ifFalse'].includes(key) && !([undefined, null].includes(nodeData[key]))) {
 					nodeData[key] = id2nodeDataList[nodeData[key]].node;
 				}
 			}
