@@ -278,10 +278,10 @@ function expressionEditFunction(defaultValue, mustBeMutable = false, callBack = 
 }
 class CircumstanceNode extends FlowChartNode {
 	static compTypeSymbolTable = {
-		num: ['=', '<', '>', '≠'],
-		str: ['=', '≈', '⊂', '≠'],
-		pos: ['=', '⊆', '∩(≠∅)', '∩(=∅)'],
-		tof: ['=', '≠']
+		num: ['=', '<', '>'],
+		str: ['=', '≈', '⊂'],
+		pos: ['=', '⊆', '∩(≠∅)'],
+		tof: ['=']
 	}
 	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, ifTrue = undefined, ifFalse = undefined }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
@@ -427,17 +427,23 @@ class CircumstanceNode extends FlowChartNode {
 	}
 }
 class AssignmentNode extends FlowChartNode {
-	constructor({ anchor = [-200, 200], compType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, then = undefined }) {
+	static operateTypeSymbolTable = {
+		num: ['=', '+=', '*=', '^='],
+		str: ['=', '+='],
+		pos: ['=', 'center +=', 'center =', 'size ='],
+		tof: ['=', '|=', '&=', '^='],
+	}
+	constructor({ anchor = [-200, 200], operateType = 0, leftExpression = { key1: 'var', key2: 'num myVar' }, rightExpression = { key1: 'num', key2: '1' }, then = undefined }) {
 		super({ anchor: anchor, relativeAnchorPos: [0.5, 0], size: undefined, draggable: true });
-		this.compType = compType;
+		this.operateType = operateType;
 		this.leftExpression = leftExpression;
 		this.rightExpression = rightExpression;
 		this.then = then;
 		this.calc();
 	}
 	export() {
-		let { anchor, leftExpression, rightExpression, compType, then } = this;
-		return { anchor, leftExpression, rightExpression, compType, then };
+		let { anchor, leftExpression, rightExpression, operateType, then } = this;
+		return { anchor, leftExpression, rightExpression, operateType, then };
 	}
 	calc() {
 		let { charSize, padding } = FlowChartNode;
@@ -477,8 +483,8 @@ class AssignmentNode extends FlowChartNode {
 		let typeAndColorLeft = expressionTypeAndColor(this.leftExpression),
 			typeAndColorRight = expressionTypeAndColor(this.rightExpression);
 		let typeEqual = (typeAndColorLeft.type && typeAndColorRight.type && typeAndColorLeft.type === typeAndColorRight.type);
-		let compTypeEnable = (typeEqual && (typeAndColorLeft.type in CircumstanceNode.compTypeSymbolTable) &&
-			CircumstanceNode.compTypeSymbolTable[typeAndColorLeft.type].length > this.compType);
+		let operateTypeEnable = (typeEqual && (typeAndColorLeft.type in AssignmentNode.operateTypeSymbolTable) &&
+			AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type].length > this.operateType);
 		for (let itemData of [
 			{
 				text: this.leftExpressionLines,
@@ -491,9 +497,14 @@ class AssignmentNode extends FlowChartNode {
 				}
 			},
 			{
-				text: compTypeEnable ? '<-' : 'x',
+				text: operateTypeEnable ? AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type][this.operateType] : 'x',
 				bgc: typeEqual ? typeAndColorLeft.color : 'white',
-				editFunction: () => { }
+				editFunction: () => {
+					let dict = operateTypeEnable ? Object.fromEntries(Object.entries(AssignmentNode.operateTypeSymbolTable[typeAndColorLeft.type]).map(([index, symbol]) => [symbol, index])) : { 'x': 0 };
+					popup.search({ dict, type: 'number' }, res => {
+						if (res !== null) this.operateType = res.value;
+					});
+				}
 			},
 			{
 				text: this.rightExpressionLines,

@@ -22,4 +22,4 @@
 - [ ] 快捷鍵 > [Ctrl] + [Y] or [Ctrl] + [Shift] + [Z] redo
 - [ ] 右上游標hover element說明框
 - [ ] word overflow 問題 (詞卡表、對話節點(畫在tempCvs上，再統一clip))
-- [ ] POWPlayer.js
+- [x] POWPlayer.js

@@ -48,9 +48,45 @@ let POWPlayer = (() => {
 	class POWPlayer {
 		static POWProject = POWProject;
 		#project = undefined;
-		#variable = {};
+		#variableDict = {};
+		#getExpressionTypeAndValue = function ({ key1, key2 }) {
+			let basicType = ['num', 'str', 'pos', 'tof'];
+			if (basicType.includes(key1)) {
+				return { type: key1, value: key2, overrideFunc: () => { } };
+			} else {
+				let type, value, overrideFunc;
+				value = key1 in this.#variableDict ? this.#variableDict[key1][key2] : undefined;
+				overrideFunc = newValue => {
+					if (!(key1 in this.#variableDict)) {
+						this.#variableDict[key1] = {};
+					}
+					this.#variableDict[key1][key2] = newValue;
+				};
+				if (['tmp', 'var'].includes(key1)) {
+					type = key2.toString().slice(0, 3); // toString 以免出現非字串的 key2
+					type = basicType.includes(type) ? basicType : undefined;
+				} else {
+					let propTypeMap = {
+						'position': 'pos',
+						'opened': 'tof'
+					}
+					type = key2 in propTypeMap ? propTypeMap[key2] : undefined;
+				}
+				return { type, value, overrideFunc };
+			}
+		}
+		#pos2TwoDots = function (pos) {
+			if (!('center' in pos)) pos.center = [0, 0];
+			if (!('size' in pos)) pos.size = [0, 0];
+			return [
+				pos.center[0] - pos.size[0] / 2,
+				pos.center[1] - pos.size[1] / 2,
+				pos.center[0] + pos.size[0] / 2,
+				pos.center[1] + pos.size[1] / 2
+			];
+		}
 		#runFlowChart = function (flowChartData) {
-			if (flowChartData === undefined) throw Error('找不到要執行的節點樹！');
+			if (flowChartData == undefined) throw Error('找不到要執行的節點樹！');
 			if (!flowChartData.initialized) {
 				let processQueueList = [
 					[flowChartData.assignment, 'assignment'],
@@ -65,18 +101,95 @@ let POWPlayer = (() => {
 				flowChartData.nodeDataDict = Object.fromEntries(processQueueList.map(([dataDict, _]) => Object.entries(dataDict)).flat());
 				flowChartData.initialized = true;
 			}
-			// console.log(flowChartData);
 
 			let returnDialog = {};
 			let nextNodeId = flowChartData.start;
 			while (nextNodeId !== undefined) {
 				let nodeData = flowChartData.nodeDataDict[nextNodeId];
+				let leftExpressionData, rightExpressionData;
 				switch (nodeData.nodeType) {
 					case 'assignment':
+						leftExpressionData = this.#getExpressionTypeAndValue(nodeData.leftExpression);
+						rightExpressionData = this.#getExpressionTypeAndValue(nodeData.rightExpression);
+						if (
+							leftExpressionData.type === rightExpressionData.type ||
+							!([leftExpressionData.type, rightExpressionData.type].includes(undefined))
+						) {
+							let newValue;
+							switch (leftExpressionData.type) {
+								case 'num':
+									newValue =
+										nodeData.compType == 0 ? rightExpressionData.value :
+											nodeData.compType == 1 ? leftExpressionData.value + rightExpressionData.value :
+												nodeData.compType == 2 ? leftExpressionData.value * rightExpressionData.value :
+													nodeData.compType == 3 ? Math.pow(leftExpressionData.value, rightExpressionData.value) :
+														undefined;
+									break;
+								case 'str':
+									newValue =
+										nodeData.compType == 0 ? rightExpressionData.value :
+											nodeData.compType == 1 ? leftExpressionData.value + rightExpressionData.value :
+												undefined;
+									break;
+								case 'pos':
+									newValue =
+										nodeData.compType == 0 ? rightExpressionData.value :
+											nodeData.compType == 1 ? { center: leftExpressionData.value.map((n, i) => n + rightExpressionData.value[i]), size: leftExpressionData.value.size } :
+												nodeData.compType == 2 ? { center: rightExpressionData.value.center, size: leftExpressionData.value.size } :
+													nodeData.compType == 3 ? { center: leftExpressionData.value.center, size: rightExpressionData.value.size } :
+														undefined;
+									break;
+								case 'tof':
+									newValue =
+										nodeData.compType == 0 ? rightExpressionData.value :
+											nodeData.compType == 1 ? leftExpressionData.value | rightExpressionData.value :
+												nodeData.compType == 2 ? leftExpressionData.value & rightExpressionData.value :
+													nodeData.compType == 3 ? leftExpressionData.value ^ rightExpressionData.value :
+														undefined;
+									break;
+							}
+							leftExpressionData.overrideFunc(newValue);
+						}
 						nextNodeId = nodeData.then;
 						break;
 					case 'circumstance':
-						nextNodeId = nodeData.ifTrue;
+						let cmp = false;
+						leftExpressionData = this.#getExpressionTypeAndValue(nodeData.leftExpression);
+						rightExpressionData = this.#getExpressionTypeAndValue(nodeData.rightExpression);
+						if (
+							leftExpressionData.type === rightExpressionData.type ||
+							!([leftExpressionData.type, rightExpressionData.type].includes(undefined))
+						) {
+							switch (leftExpressionData.type) {
+								case 'num':
+									cmp =
+										nodeData.compType == 0 ? leftExpressionData.value == rightExpressionData.value :
+											nodeData.compType == 1 ? leftExpressionData.value < rightExpressionData.value :
+												nodeData.compType == 2 ? leftExpressionData.value > rightExpressionData.value :
+													undefined;
+									break;
+								case 'str':
+									cmp =
+										nodeData.compType == 0 ? leftExpressionData.value == rightExpressionData.value :
+											nodeData.compType == 1 ? leftExpressionData.value.toLowerCase() == rightExpressionData.value.toLowerCase() :
+												nodeData.compType == 2 ? rightExpressionData.value.includes(leftExpressionData) :
+													undefined;
+									break;
+								case 'pos':
+									let ltd = this.#pos2TwoDots(leftExpressionData.value), // left expression pos 2 two dots
+										rtd = this.#pos2TwoDots(rightExpressionData.value); // right expression pos 2 two dots
+									cmp =
+										nodeData.compType == 0 ? (ltd[0] == rtd[0] && ltd[1] == rtd[1] && ltd[2] == rtd[2] && ltd[3] == rtd[3]) :
+											nodeData.compType == 1 ? (ltd[0] > rtd[0] && ltd[1] > rtd[1] && ltd[2] < rtd[2] && ltd[3] < rtd[3]) :
+												nodeData.compType == 2 ? !(ltd[0] > rtd[2] || ltd[1] > rtd[3] || ltd[2] < rtd[0] || ltd[3] < rtd[1]) :
+													undefined;
+									break;
+								case 'tof':
+									cmp = nodeData.compType == 0 ? leftExpressionData.value == rightExpressionData.value : undefined;
+									break;
+							}
+						}
+						nextNodeId = cmp ? nodeData.ifTrue : nodeData.ifFalse;
 						break;
 					case 'dialog':
 						returnDialog = { ...nodeData };
@@ -85,7 +198,12 @@ let POWPlayer = (() => {
 						break;
 				}
 			}
-			return returnDialog;
+			return {
+				image: this.#project.imageDataDict[returnDialog.image].element,
+				message: returnDialog.message,
+				appendWords: returnDialog.appendWords,
+				removeWords: returnDialog.removeWords
+			};
 		}
 		constructor() { }
 		async load(source) {
@@ -108,13 +226,21 @@ let POWPlayer = (() => {
 		}
 		init() {
 			if (!this.#project) throw Error('播放器尚未載入專案！');
+			this.#project.partOfSpeech.n.map((word, i) => {
+				let wordAttribute = this.#project.wordAttribute.n[i];
+				let handle = this.#getExpressionTypeAndValue({ key1: `wvn.${word}`, key2: 'position' });
+				let center = 'center' in wordAttribute ? wordAttribute.center : [0, 0];
+				let size = 'size' in wordAttribute ? wordAttribute.size : [0, 0];
+				handle.overrideFunc({ center, size });
+			})
 			return this.#runFlowChart(this.#project.init);
 		}
 		exec([s, v, o]) {
 			if (!this.#project) throw Error('播放器尚未載入專案！');
-			[s, v, o] = [s, v, o].map(word => this.#project.partOfSpeech.n.indexOf(word));
+			[s, o] = [s, o].map(word => this.#project.partOfSpeech.n.indexOf(word));
+			v = this.#project.partOfSpeech.v.indexOf(v);
 			if ([s, v, o].includes(-1)) throw Error('輸入了未定義的詞卡！');
-			return this.#runFlowChart(this.#project.cases[s][v][o]);
+			return this.#runFlowChart(this.#project.cases[v][s][o]);
 		}
 	}
 	return POWPlayer;

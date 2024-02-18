@@ -97,3 +97,7 @@
 
 1. `POWPlayer.js`專案載入
 2. `POWPlayer.js`task基本處理
+
+## 2024/02/18 10:35 [MaoHuPi]
+
+1. 完成`POWPlayer.js`節點執行
