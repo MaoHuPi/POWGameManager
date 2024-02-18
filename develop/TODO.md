@@ -17,7 +17,7 @@
 - [x] 檔案匯入/匯出
 - [ ] 語言設定與切換
 - [x] project init flowChart
-- [ ] 快捷鍵 > [Ctrl] + [s] 存檔
+- [x] 快捷鍵 > [Ctrl] + [s] 存檔
 - [ ] 快捷鍵 > [Ctrl] + [Z] undo
 - [ ] 快捷鍵 > [Ctrl] + [Y] or [Ctrl] + [Shift] + [Z] redo
 - [ ] 右上游標hover element說明框

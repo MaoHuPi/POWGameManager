@@ -115,16 +115,16 @@ class Project {
 	}
 }
 let project = new Project();
-project.partOfSpeech = {
-	n: ['1', '2'], v: ['a']
-};
-project.wordAttribute = {
-	n: [{}, {}], v: [{}]
-};
-project.cases = NDArray([1, 2, 2], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
-(async () => {
-	project.imageDataDict['headerButton'] = { element: await getImage('image/headerButton.png'), buffer: undefined };
-})();
+// project.partOfSpeech = {
+// 	n: ['1', '2'], v: ['a']
+// };
+// project.wordAttribute = {
+// 	n: [{}, {}], v: [{}]
+// };
+// project.cases = NDArray([1, 2, 2], ([i1, i2, i3]) => i2 != i3 ? FlowChart.exportEmpty() : undefined);
+// (async () => {
+// 	project.imageDataDict['headerButton'] = { element: await getImage('image/headerButton.png'), buffer: undefined };
+// })();
 
 let projectName = 'project.pow';
 function updateEditingFlowChartToProject() {
@@ -313,7 +313,8 @@ function wordRename({ POS, index }) {
 	});
 }
 function wordDelete({ POS, index, listName }) {
-	popup.confirm(`確定刪除「${project.partOfSpeech[POS][index]}」？`, res => {
+	let oldName = project.partOfSpeech[POS][index];
+	popup.confirm(`確定刪除「${oldName}」？`, res => {
 		if (res) {
 			project.partOfSpeech[POS].splice(index, 1);
 			project.wordAttribute[POS].splice(index, 1);
@@ -363,15 +364,22 @@ async function allScene() {
 	drawBox(ctx, {
 		pos: header,
 		bgc: '#313131',
-		fgc: 'white',
-		text: '< POW Game Manager >',
-		size: 30
+		// fgc: 'white',
+		// text: '< POW Game Manager >',
+		// size: 30
 	});
+
 	drawPoliigon(ctx, {
 		points: [[header[0], header[1] + header[3] - 5 / 2], [header[0] + header[2], header[1] + header[3] - 5 / 2]],
 		lineWidth: 2,
 		stroke: 'white'
 	});
+
+	let logoImage = await getImage('image/logo_withoutBackground.png');
+	let logo = [0, 5, , header[3] * 1.2];
+	logo[2] = logo[3] / logoImage.height * logoImage.width;
+	logo[0] = (CW - logo[2]) / 2;
+	ctx.drawImage(logoImage, ...logo);
 
 	for (let option of [
 		{ // new project
@@ -477,156 +485,165 @@ async function scene_sheet() {
 	let aside = [CW - 400, header[3], 400, CH - header[3]];
 
 	let grid = [0, header[3], aside[0], CH - header[3]];
-	let gridHovered = isHover(mouse, grid);
-	if (gridHovered) {
-		let lastScale = sceneVar.sheet.scale;
-		sceneVar.sheet.scale -= mouse.deltaZoom * Math.abs(mouse.deltaZoom) / 1e4;
-		sceneVar.sheet.scale = Math.min(Math.max(sceneVar.sheet.scale, 0.2), 1.5);
-		sceneVar.sheet.gridX = sceneVar.sheet.gridX / lastScale * sceneVar.sheet.scale;
-		sceneVar.sheet.gridY = sceneVar.sheet.gridY / lastScale * sceneVar.sheet.scale;
-		sceneVar.sheet.gridX += mouse.x - mouse.x / lastScale * sceneVar.sheet.scale;
-		sceneVar.sheet.gridY += (mouse.y - header[3]) - (mouse.y - header[3]) / lastScale * sceneVar.sheet.scale;
-		sceneVar.sheet.gridX -= mouse.deltaX / 2 * 3;
-		sceneVar.sheet.gridY -= mouse.deltaY / 2;
-	}
-	let [cellWidth, cellHeight] = [180, 60].map(n => n * sceneVar.sheet.scale);
-	let gridSize = project.partOfSpeech.n.length + 1;
-	let cellGap = 5;
-	let cellBorderWidth = 2;
+	if (project.partOfSpeech.n.length >= 2 && project.partOfSpeech.v.length >= 1) {
+		let gridHovered = isHover(mouse, grid);
+		if (gridHovered) {
+			let lastScale = sceneVar.sheet.scale;
+			sceneVar.sheet.scale -= mouse.deltaZoom * Math.abs(mouse.deltaZoom) / 1e4;
+			sceneVar.sheet.scale = Math.min(Math.max(sceneVar.sheet.scale, 0.2), 1.5);
+			sceneVar.sheet.gridX = sceneVar.sheet.gridX / lastScale * sceneVar.sheet.scale;
+			sceneVar.sheet.gridY = sceneVar.sheet.gridY / lastScale * sceneVar.sheet.scale;
+			sceneVar.sheet.gridX += mouse.x - mouse.x / lastScale * sceneVar.sheet.scale;
+			sceneVar.sheet.gridY += (mouse.y - header[3]) - (mouse.y - header[3]) / lastScale * sceneVar.sheet.scale;
+			sceneVar.sheet.gridX -= mouse.deltaX / 2 * 3;
+			sceneVar.sheet.gridY -= mouse.deltaY / 2;
+		}
+		let [cellWidth, cellHeight] = [180, 60].map(n => n * sceneVar.sheet.scale);
+		let gridSize = project.partOfSpeech.n.length + 1;
+		let cellGap = 5;
+		let cellBorderWidth = 2;
 
-	let s = -1, v = -1, o = -1;
-	if (sceneVar.global.goto && sceneVar.global.gotoType !== undefined && sceneVar.global.gotoIndex !== undefined) {
-		if (sceneVar.global.gotoType == 's') s = sceneVar.global.gotoIndex;
-		else if (sceneVar.global.gotoType == 'v') v = sceneVar.global.gotoIndex;
-		else if (sceneVar.global.gotoType == 'o') o = sceneVar.global.gotoIndex;
-		sceneVar.global.goto = false;
-	}
-	if (sceneVar.sheet.gotoEmptyWarningSelected) {
-		s = sceneVar.sheet.emptyWarningSelectedCell.s;
-		v = sceneVar.sheet.emptyWarningSelectedCell.v;
-		o = sceneVar.sheet.emptyWarningSelectedCell.o;
-		sceneVar.sheet.gotoEmptyWarningSelected = false;
-	}
-	if (s !== -1) sceneVar.sheet.gridY -= (sceneVar.sheet.gridY + (cellHeight + cellGap) * s + cellHeight / 2) - (grid[1] + grid[3] / 2);
-	if (v !== -1) sceneVar.sheet.vIndex = v;
-	if (o !== -1) sceneVar.sheet.gridX -= (sceneVar.sheet.gridX + (cellWidth + cellGap) * o + cellHeight / 2) - (grid[0] + grid[2] / 2);
+		let s = -1, v = -1, o = -1;
+		if (sceneVar.global.goto && sceneVar.global.gotoType !== undefined && sceneVar.global.gotoIndex !== undefined) {
+			if (sceneVar.global.gotoType == 's') s = sceneVar.global.gotoIndex;
+			else if (sceneVar.global.gotoType == 'v') v = sceneVar.global.gotoIndex;
+			else if (sceneVar.global.gotoType == 'o') o = sceneVar.global.gotoIndex;
+			sceneVar.global.goto = false;
+		}
+		if (sceneVar.sheet.gotoEmptyWarningSelected) {
+			s = sceneVar.sheet.emptyWarningSelectedCell.s;
+			v = sceneVar.sheet.emptyWarningSelectedCell.v;
+			o = sceneVar.sheet.emptyWarningSelectedCell.o;
+			sceneVar.sheet.gotoEmptyWarningSelected = false;
+		}
+		if (s !== -1) sceneVar.sheet.gridY -= (sceneVar.sheet.gridY + (cellHeight + cellGap) * s + cellHeight / 2) - (grid[1] + grid[3] / 2);
+		if (v !== -1) sceneVar.sheet.vIndex = v;
+		if (o !== -1) sceneVar.sheet.gridX -= (sceneVar.sheet.gridX + (cellWidth + cellGap) * o + cellHeight / 2) - (grid[0] + grid[2] / 2);
 
-	sceneVar.sheet.gridX = Math.min(Math.max(sceneVar.sheet.gridX, -(((cellWidth + cellGap) * (gridSize - 1)) - (grid[2] - cellWidth))), 0);
-	sceneVar.sheet.gridY = Math.min(Math.max(sceneVar.sheet.gridY, -(((cellHeight + cellGap) * (gridSize - 1)) - (grid[3] - cellHeight))), 0);
+		sceneVar.sheet.gridX = Math.min(Math.max(sceneVar.sheet.gridX, -(((cellWidth + cellGap) * (gridSize - 1)) - (grid[2] - cellWidth))), 0);
+		sceneVar.sheet.gridY = Math.min(Math.max(sceneVar.sheet.gridY, -(((cellHeight + cellGap) * (gridSize - 1)) - (grid[3] - cellHeight))), 0);
 
-	tempCtx.gridTitle.clearRect(0, 0, CW, CH);
-	tempCtx.gridValue.clearRect(0, 0, CW, CH);
-	let gridValuePos = [cellWidth + cellBorderWidth, header[3] + cellHeight + cellBorderWidth, 0, 0];
-	gridValuePos[2] = grid[0] + grid[2] - gridValuePos[0];
-	gridValuePos[3] = grid[1] + grid[3] - gridValuePos[1];
-	let gridTitlePosList = [
-		[0, gridValuePos[1], cellWidth + cellBorderWidth, gridValuePos[3]],
-		[gridValuePos[0], header[3], gridValuePos[2], cellHeight + cellBorderWidth]
-	];
-	if (!gridHovered) {
-		sceneVar.sheet.hoveredCell = [false, false];
-	}
-	for (let r = 0; r < Math.ceil(grid[3] / cellHeight) + 1; r++)
-		for (let c = 0; c < Math.ceil(grid[2] / cellWidth) + 1; c++) {
-			// 多畫一層，讓項目標題與內容產生至少一個的重疊
-			let targetCtx = ctx;
-			let cell = [0 + (cellWidth + cellGap) * c, header[3] + (cellHeight + cellGap) * r, cellWidth, cellHeight];
-			let glow = false;
-			let option = {
-				pos: cell,
-				bgc: color.buttonBgc,
-				border: color.buttonDisabled,
-				borderWidth: cellBorderWidth,
-				fgc: 'white',
-				text: '',
-				size: 30 * sceneVar.sheet.scale
-			};
-			let dR = sceneVar.sheet.gridY / (cellHeight + cellGap),
-				dC = sceneVar.sheet.gridX / (cellWidth + cellGap),
-				rR = r - Math.ceil(dR),
-				rC = c - Math.ceil(dC),
-				dY = (dR % 1) * (cellHeight + cellGap),
-				dX = (dC % 1) * (cellWidth + cellGap),
-				i = Math.max(r, c),
-				rI = i == r ? rR : rC;
-			if (r == c && r == 0) {
-				option.border = color.wordBoxV;
-				option.text = project.partOfSpeech.v[sceneVar.sheet.vIndex];
-				if (sceneVar.global.gotoType == 'v') {
-					option.bgc = option.border;
-					option.fgc = 'black';
-				}
-			} else if (r == 0 || c == 0) {
-				targetCtx = tempCtx.gridTitle;
-				if (i == r) {
-					option.pos[1] += dY;
-				} else {
-					option.pos[0] += dX;
-				}
-				let cellHovered = gridHovered && isHover(mouse, cell);
-				option.text = project.partOfSpeech.n[rI - 1];
-				option.border = color.wordBoxSAndO;
-				if (cellHovered) {
-					sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
-				}
-				if (sceneVar.sheet.hoveredCell[i == r ? 1 : 0] === rI - 1) {
-					glow = true;
-				}
-				if (sceneVar.global.gotoIndex == rI - 1 && sceneVar.global.gotoType !== undefined) {
-					if (
-						(sceneVar.global.gotoType == 's' && i == r) ||
-						(sceneVar.global.gotoType == 'o' && i == c)
-					) {
+		tempCtx.gridTitle.clearRect(0, 0, CW, CH);
+		tempCtx.gridValue.clearRect(0, 0, CW, CH);
+		let gridValuePos = [cellWidth + cellBorderWidth, header[3] + cellHeight + cellBorderWidth, 0, 0];
+		gridValuePos[2] = grid[0] + grid[2] - gridValuePos[0];
+		gridValuePos[3] = grid[1] + grid[3] - gridValuePos[1];
+		let gridTitlePosList = [
+			[0, gridValuePos[1], cellWidth + cellBorderWidth, gridValuePos[3]],
+			[gridValuePos[0], header[3], gridValuePos[2], cellHeight + cellBorderWidth]
+		];
+		if (!gridHovered) {
+			sceneVar.sheet.hoveredCell = [false, false];
+		}
+		for (let r = 0; r < Math.ceil(grid[3] / cellHeight) + 1; r++)
+			for (let c = 0; c < Math.ceil(grid[2] / cellWidth) + 1; c++) {
+				// 多畫一層，讓項目標題與內容產生至少一個的重疊
+				let targetCtx = ctx;
+				let cell = [0 + (cellWidth + cellGap) * c, header[3] + (cellHeight + cellGap) * r, cellWidth, cellHeight];
+				let glow = false;
+				let option = {
+					pos: cell,
+					bgc: color.buttonBgc,
+					border: color.buttonDisabled,
+					borderWidth: cellBorderWidth,
+					fgc: 'white',
+					text: '',
+					size: 30 * sceneVar.sheet.scale
+				};
+				let dR = sceneVar.sheet.gridY / (cellHeight + cellGap),
+					dC = sceneVar.sheet.gridX / (cellWidth + cellGap),
+					rR = r - Math.ceil(dR),
+					rC = c - Math.ceil(dC),
+					dY = (dR % 1) * (cellHeight + cellGap),
+					dX = (dC % 1) * (cellWidth + cellGap),
+					i = Math.max(r, c),
+					rI = i == r ? rR : rC;
+				if (r == c && r == 0) {
+					option.border = color.wordBoxV;
+					option.text = project.partOfSpeech.v[sceneVar.sheet.vIndex];
+					if (sceneVar.global.gotoType == 'v') {
 						option.bgc = option.border;
 						option.fgc = 'black';
 					}
-				}
-				if (rI - 1 < 0 || rI > project.partOfSpeech.n.length) {
-					if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
-					continue;
-				};
-			} else {
-				targetCtx = tempCtx.gridValue;
-				option.pos[1] += dY;
-				option.pos[0] += dX;
-				let cellHovered = isHover(mouse, gridValuePos) && isHover(mouse, cell);
-				if (rR == rC) {
-					option.bgc = '#313131';
-				}
-				if (cellHovered) {
-					sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
-					glow = true;
-					option.border = 'white';
+				} else if (r == 0 || c == 0) {
+					targetCtx = tempCtx.gridTitle;
+					if (i == r) {
+						option.pos[1] += dY;
+					} else {
+						option.pos[0] += dX;
+					}
+					let cellHovered = gridHovered && isHover(mouse, cell);
+					option.text = project.partOfSpeech.n[rI - 1];
+					option.border = color.wordBoxSAndO;
+					if (cellHovered) {
+						sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
+					}
+					if (sceneVar.sheet.hoveredCell[i == r ? 1 : 0] === rI - 1) {
+						glow = true;
+					}
+					if (sceneVar.global.gotoIndex == rI - 1 && sceneVar.global.gotoType !== undefined) {
+						if (
+							(sceneVar.global.gotoType == 's' && i == r) ||
+							(sceneVar.global.gotoType == 'o' && i == c)
+						) {
+							option.bgc = option.border;
+							option.fgc = 'black';
+						}
+					}
+					if (rI - 1 < 0 || rI > project.partOfSpeech.n.length) {
+						if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
+						continue;
+					};
+				} else {
+					targetCtx = tempCtx.gridValue;
+					option.pos[1] += dY;
+					option.pos[0] += dX;
+					let cellHovered = isHover(mouse, gridValuePos) && isHover(mouse, cell);
 					if (rR == rC) {
-						option.text = 'x';
-					} else if (mouse.DBlClick) {
-						sceneVar.sheet.cellEditing = [sceneVar.sheet.vIndex, rR - 1, rC - 1];
-						currentScene = scene_flowChart;
+						option.bgc = '#313131';
+					}
+					if (cellHovered) {
+						sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
+						glow = true;
+						option.border = 'white';
+						if (rR == rC) {
+							option.text = 'x';
+						} else if (mouse.DBlClick) {
+							sceneVar.sheet.cellEditing = [sceneVar.sheet.vIndex, rR - 1, rC - 1];
+							currentScene = scene_flowChart;
+						}
+					}
+					if (
+						sceneVar.sheet.emptyWarningSelectedCell &&
+						sceneVar.sheet.vIndex === sceneVar.sheet.emptyWarningSelectedCell.v &&
+						rR - 1 === sceneVar.sheet.emptyWarningSelectedCell.s &&
+						rC - 1 === sceneVar.sheet.emptyWarningSelectedCell.o
+					) {
+						option.border = color.buttonWarning;
+					}
+					if (Math.min(rR, rC) - 1 < 0 || Math.max(rR, rC) > project.partOfSpeech.n.length) {
+						if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
+						continue;
 					}
 				}
-				if (
-					sceneVar.sheet.emptyWarningSelectedCell &&
-					sceneVar.sheet.vIndex === sceneVar.sheet.emptyWarningSelectedCell.v &&
-					rR - 1 === sceneVar.sheet.emptyWarningSelectedCell.s &&
-					rC - 1 === sceneVar.sheet.emptyWarningSelectedCell.o
-				) {
-					option.border = color.buttonWarning;
+				targetCtx.save();
+				if (glow) {
+					glowEffect(targetCtx, option.border, 10);
 				}
-				if (Math.min(rR, rC) - 1 < 0 || Math.max(rR, rC) > project.partOfSpeech.n.length) {
-					if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
-					continue;
-				}
+				drawBox(targetCtx, option);
+				targetCtx.restore();
 			}
-			targetCtx.save();
-			if (glow) {
-				glowEffect(targetCtx, option.border, 10);
-			}
-			drawBox(targetCtx, option);
-			targetCtx.restore();
-		}
-	ctx.drawImage(tempCvs.gridValue, ...gridValuePos, ...gridValuePos);
-	ctx.drawImage(tempCvs.gridTitle, ...gridTitlePosList[0], ...gridTitlePosList[0]);
-	ctx.drawImage(tempCvs.gridTitle, ...gridTitlePosList[1], ...gridTitlePosList[1]);
+		ctx.drawImage(tempCvs.gridValue, ...gridValuePos, ...gridValuePos);
+		ctx.drawImage(tempCvs.gridTitle, ...gridTitlePosList[0], ...gridTitlePosList[0]);
+		ctx.drawImage(tempCvs.gridTitle, ...gridTitlePosList[1], ...gridTitlePosList[1]);
+	} else {
+		drawBox(ctx, {
+			pos: grid,
+			fgc: 'gray',
+			text: '至少存在2個以上的名詞詞卡、1個以上的動詞詞卡，方可使用動作編輯表。',
+			size: CW * 0.015
+		})
+	}
 
 	drawBox(ctx, {
 		pos: aside,
@@ -1465,3 +1482,41 @@ async function loop() {
 	setTimeout(loop, 30);
 }
 loop();
+
+/* hot keys */
+window.addEventListener('keydown', event => {
+	if (event.ctrlKey && !popup.show) {
+		let preventDefault = true;
+		let sceneVarDict;
+		switch (event.key) {
+			case 'o':
+				openProject();
+				break;
+			case 's':
+				saveProject();
+				break;
+			case 'e':
+				newProject();
+				break;
+			case 'd':
+				editProjectDefaultCase();
+				break;
+			case 'i':
+				editProjectInit();
+				break;
+			case '1':
+				if (currentScene == scene_attribute) sceneVarDict = sceneVar.attribute;
+			case '2':
+				if (currentScene == scene_sheet) sceneVarDict = sceneVar.sheet;
+			case '3':
+				if (currentScene == scene_flowChart) sceneVarDict = sceneVar.flowChart;
+				if (sceneVarDict) sceneVarDict.asidePage = parseInt(event.key) - 1;
+				// else preventDefault = false;
+				break;
+			default:
+				preventDefault = false;
+				break;
+		}
+		if (preventDefault) event.preventDefault();
+	}
+});
