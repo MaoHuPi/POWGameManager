@@ -261,7 +261,7 @@ function expressionEditFunction(defaultValue, mustBeMutable = false, callBack = 
 						});
 					}
 				});
-				popup.search({ list: varVariableList, type: 'text', defaultValue, canOutOfEntries: true }, search2CallBack);
+				popup.search({ list: [...new Set(varVariableList)], type: 'text', defaultValue, canOutOfEntries: true }, search2CallBack);
 			} else {
 				let valueSplitByDot = res1.value.split('.');
 				let valuePOS = valueSplitByDot.shift() == 'wvn' ? 'n' : 'v';
