@@ -558,14 +558,14 @@ async function scene_sheet() {
 					dX = (dC % 1) * (cellWidth + cellGap),
 					i = Math.max(r, c),
 					rI = i == r ? rR : rC;
-				if (r == c && r == 0) {
+				if (r == c && r == 0) { // 左上角動詞欄位
 					option.border = color.wordBoxV;
 					option.text = project.partOfSpeech.v[sceneVar.sheet.vIndex];
 					if (sceneVar.global.gotoType == 'v') {
 						option.bgc = option.border;
 						option.fgc = 'black';
 					}
-				} else if (r == 0 || c == 0) {
+				} else if (r == 0 || c == 0) { // 左側主詞 與 上方受詞 欄位
 					targetCtx = tempCtx.gridTitle;
 					if (i == r) {
 						option.pos[1] += dY;
@@ -594,13 +594,23 @@ async function scene_sheet() {
 						if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
 						continue;
 					};
-				} else {
+				} else { // 內部格子
 					targetCtx = tempCtx.gridValue;
 					option.pos[1] += dY;
 					option.pos[0] += dX;
 					let cellHovered = isHover(mouse, gridValuePos) && isHover(mouse, cell);
 					if (rR == rC) {
 						option.bgc = '#313131';
+					} else {
+						try {
+							let caseNow = project.cases[sceneVar.sheet.vIndex][rR - 1][rC - 1];
+							if (caseNow && caseNow.dialog !== undefined) {
+								let nodeCount = ['circumstance', 'assignment', 'dialog'].map(key => Object.keys(caseNow[key]).length)
+								if (nodeCount.reduce((s, n) => s + n) > 0) {
+									option.text = nodeCount.join(',');
+								}
+							};
+						} catch (error) { }
 					}
 					if (cellHovered) {
 						sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
