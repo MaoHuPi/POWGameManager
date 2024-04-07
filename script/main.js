@@ -876,6 +876,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.chartY += relativeMouse[1] - relativeMouse[1] / lastScale * sceneVar.flowChart.scale;
 		sceneVar.flowChart.chartX -= mouse.deltaX / 2;
 		sceneVar.flowChart.chartY -= mouse.deltaY / 2;
+		
 	}
 
 	drawBox(ctx, {

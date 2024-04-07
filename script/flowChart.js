@@ -883,6 +883,24 @@ class FlowChart {
 			tempCtx.chart.stroke();
 		}
 
+		if (isHover(mouse, chart) && mouse.down && sceneVar.flowChart.draggingNode == undefined) {
+			sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
+			sceneVar.flowChart.mouseSelecting = true;
+		}
+		if (mouse.up && sceneVar.flowChart.mouseSelecting) {
+			sceneVar.flowChart.mouseSelecting = false
+		};
+		if (sceneVar.flowChart.mouseSelecting) {
+			let mouseDownPos = sceneVar.flowChart.dragStartPos;
+			let selectRect = [mouseDownPos[0], mouseDownPos[1], mouse.x - mouseDownPos[0], mouse.y - mouseDownPos[1]];
+			drawBox(tempCtx.chart, {
+				pos: selectRect,
+				bgc: color.wordBoxSAndO + '55',
+				border: color.wordBoxSAndO,
+				borderWidth: 2,
+			});
+		}
+
 		ctx.drawImage(tempCvs.chart, ...chart, ...chart);
 		ctx.drawImage(tempCvs.nodeDragging, ...chart, ...chart);
 		tempCtx.nodeDragging.clearRect(...chart);
