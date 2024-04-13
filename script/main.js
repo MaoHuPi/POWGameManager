@@ -263,6 +263,16 @@ function updateKeyboard(event, setValue) {
 	keyboard.Shift = event.shiftKey;
 	keyboard.Alt = event.altKey;
 }
+window.addEventListener('copy', () => {
+	keyboard.Copy = true;
+});
+window.addEventListener('cut', () => {
+	keyboard.Cut = true;
+});
+window.addEventListener('paste', event => {
+	let pasteContent = (event.clipboardData || window.clipboardData).getData("text");
+	keyboard.Paste = pasteContent;
+});
 window.addEventListener('keydown', event => { updateKeyboard(event, true) });
 window.addEventListener('keyup', event => { updateKeyboard(event, false) });
 
@@ -985,8 +995,8 @@ async function scene_flowChart() {
 							if (sceneVar.flowChart.selectedNodeList && sceneVar.flowChart.selectedNodeList.has(sceneVar.flowChart.draggingNode)) {
 								[
 									sceneVar.flowChart.flowChart.circumstanceNodeList,
-									sceneVar.flowChart.flowChart.dialogNodeList,
-									sceneVar.flowChart.flowChart.assignmentNodeList
+									sceneVar.flowChart.flowChart.assignmentNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList
 								].forEach(nodeList => {
 									sceneVar.flowChart.selectedNodeList.forEach(node => {
 										if (nodeList.includes(node)) {
@@ -997,8 +1007,8 @@ async function scene_flowChart() {
 							} else {
 								[
 									sceneVar.flowChart.flowChart.circumstanceNodeList,
-									sceneVar.flowChart.flowChart.dialogNodeList,
-									sceneVar.flowChart.flowChart.assignmentNodeList
+									sceneVar.flowChart.flowChart.assignmentNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList
 								].forEach(nodeList => {
 									if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
 										nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);

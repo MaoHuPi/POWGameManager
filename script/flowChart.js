@@ -950,69 +950,86 @@ class FlowChart {
 				}
 			};
 		}
-		if (keyboard.Control) {
-			if (keyboard.c) {
-				if (sceneVar.flowChart.selectedNodeList !== undefined && sceneVar.flowChart.selectedNodeList.size > 0) {
-					let copyObj = [...sceneVar.flowChart.selectedNodeList];
-					copyObj = copyObj.map(node => {
-						let nodeExport = node.export();
+		if (keyboard.Copy || keyboard.Cut) {
+			if (sceneVar.flowChart.selectedNodeList !== undefined && sceneVar.flowChart.selectedNodeList.size > 0) {
+				let copyObj = [...sceneVar.flowChart.selectedNodeList];
+				copyObj = copyObj.map(node => {
+					let nodeExport = node.export();
+					['ifTrue', 'ifFalse', 'then'].forEach(arg => {
+						if (node[arg] !== undefined) {
+							if (copyObj.includes(node[arg])) {
+								nodeExport[arg] = copyObj.indexOf(node[arg]);
+							} else {
+								nodeExport[arg] = undefined;
+							}
+						}
+					});
+					nodeExport.type = (node instanceof CircumstanceNode) ? 'CircumstanceNode' :
+						(node instanceof AssignmentNode) ? 'AssignmentNode' :
+							(node instanceof DialogNode) ? 'DialogNode' : ''
+					return nodeExport;
+				});
+				navigator.clipboard.writeText(JSON.stringify(copyObj));
+				if (keyboard.Cut) {
+					[
+						this.circumstanceNodeList,
+						this.assignmentNodeList,
+						this.dialogNodeList
+					].forEach(nodeList => {
+						sceneVar.flowChart.selectedNodeList.forEach(node => {
+							if (nodeList.includes(node)) {
+								nodeList.splice(nodeList.indexOf(node), 1);
+							}
+						});
+					});
+				} else {
+					popup.alert('節點已複製！');
+				}
+			} else {
+				popup.alert('請先選取節點！');
+			}
+			keyboard.Copy = false;
+			keyboard.Cut = false;
+		} else if (keyboard.Paste) {
+			let typeMap = { 'CircumstanceNode': CircumstanceNode, 'AssignmentNode': AssignmentNode, 'DialogNode': DialogNode };
+			let nodeListMap = { 'CircumstanceNode': this.circumstanceNodeList, 'AssignmentNode': this.assignmentNodeList, 'DialogNode': this.dialogNodeList }
+
+			try {
+				let copyObj = JSON.parse(keyboard.Paste);
+				if (copyObj instanceof Array) {
+					copyObj = copyObj.map(nodeData => {
+						if (nodeData.type in typeMap) {
+							let node = new (typeMap[nodeData.type])(nodeData);
+							nodeListMap[nodeData.type].push(node);
+							return node;
+						} else { return; }
+					});
+					copyObj.forEach(node => {
 						['ifTrue', 'ifFalse', 'then'].forEach(arg => {
-							if (node[arg] !== undefined) {
-								if (copyObj.includes(node[arg])) {
-									nodeExport[arg] = copyObj.indexOf(node[arg]);
+							if (node != undefined && node[arg] !== undefined) {
+								if (copyObj.length > node[arg]) {
+									node[arg] = copyObj[node[arg]];
 								} else {
-									nodeExport[arg] = undefined;
+									node[arg] = undefined;
 								}
 							}
 						});
-						nodeExport.type = (node instanceof CircumstanceNode) ? 'CircumstanceNode' :
-							(node instanceof AssignmentNode) ? 'AssignmentNode' :
-								(node instanceof DialogNode) ? 'DialogNode' : ''
-						return nodeExport;
 					});
-					navigator.clipboard.writeText(JSON.stringify(copyObj));
-					popup.alert('節點已複製！');
-				} else {
-					popup.alert('請先選取節點！');
-				}
-			} else if (keyboard.v) {
-				let typeMap = { 'CircumstanceNode': CircumstanceNode, 'AssignmentNode': AssignmentNode, 'DialogNode': DialogNode };
-				let nodeListMap = { 'CircumstanceNode': this.circumstanceNodeList, 'AssignmentNode': this.assignmentNodeList, 'DialogNode': this.dialogNodeList }
-				navigator.clipboard.readText().then(text => {
-					try {
-						let copyObj = JSON.parse(text);
-						if (copyObj instanceof Array) {
-							copyObj = copyObj.map(nodeData => {
-								if (nodeData.type in typeMap) {
-									let node = new (typeMap[nodeData.type])(nodeData);
-									nodeListMap[nodeData.type].push(node);
-									return node;
-								} else { return; }
-							});
-							copyObj.forEach(node => {
-								['ifTrue', 'ifFalse', 'then'].forEach(arg => {
-									if (node != undefined && node[arg] !== undefined) {
-										if (copyObj.length > node[arg]) {
-											node[arg] = copyObj[node[arg]];
-										} else {
-											node[arg] = undefined;
-										}
-									}
-								});
-							});
 
-							sceneVar.flowChart.selectedNodeList.clear();
-							copyObj.filter(node => node !== undefined).forEach(node => {
-								sceneVar.flowChart.selectedNodeList.add(node);
-							});
-						} else {
-							popup.alert('不支援的貼上格式！');
-						}
-					} catch {
-						popup.alert('不支援的貼上格式！');
-					}
-				});
-			} else if (keyboard.a) {
+					sceneVar.flowChart.selectedNodeList.clear();
+					copyObj.filter(node => node !== undefined).forEach(node => {
+						sceneVar.flowChart.selectedNodeList.add(node);
+					});
+				} else {
+					popup.alert('不支援的貼上格式！');
+				}
+			} catch {
+				popup.alert('不支援的貼上格式！');
+			}
+			keyboard.Paste = undefined;
+		}
+		if (keyboard.Control) {
+			if (keyboard.a) {
 				sceneVar.flowChart.selectedNodeList.clear();
 				[
 					...this.circumstanceNodeList,
