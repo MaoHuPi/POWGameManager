@@ -195,7 +195,8 @@ const color = {
 	buttonBgc: '#00000055',
 	wordBoxSAndO: '#ffc107',
 	wordBoxV: '#ff5722',
-	buttonWarning: '#03a9f4'
+	buttonWarning: '#03a9f4',
+	selectedNode: '#ffffff'
 };
 
 let currentScene = async () => { };
@@ -810,6 +811,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.nodesDots = new Map();
 		sceneVar.flowChart.imageListY = 0;
 		sceneVar.flowChart.emptyWarningY = 0;
+		sceneVar.flowChart.selectedNodeList = new Set();;
 	}
 	if (sceneChange) {
 		let cellEditing = sceneVar.sheet.cellEditing;
@@ -836,6 +838,7 @@ async function scene_flowChart() {
 				...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
 			});
 		}
+		sceneVar.flowChart.selectedNodeList.clear();
 	}
 
 	/* warning refresh */
@@ -876,7 +879,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.chartY += relativeMouse[1] - relativeMouse[1] / lastScale * sceneVar.flowChart.scale;
 		sceneVar.flowChart.chartX -= mouse.deltaX / 2;
 		sceneVar.flowChart.chartY -= mouse.deltaY / 2;
-		
+
 	}
 
 	drawBox(ctx, {
@@ -930,8 +933,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new CircumstanceNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new CircumstanceNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.circumstanceNodeList.push(node);
@@ -945,8 +949,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new AssignmentNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new AssignmentNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.assignmentNodeList.push(node);
@@ -960,8 +965,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new DialogNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new DialogNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.dialogNodeList.push(node);
@@ -976,15 +982,29 @@ async function scene_flowChart() {
 					type: 'up',
 					func: () => {
 						if (sceneVar.flowChart.draggingNode) {
-							[
-								sceneVar.flowChart.flowChart.circumstanceNodeList,
-								sceneVar.flowChart.flowChart.dialogNodeList,
-								sceneVar.flowChart.flowChart.assignmentNodeList
-							].forEach(nodeList => {
-								if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
-									nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
-								}
-							});
+							if (sceneVar.flowChart.selectedNodeList && sceneVar.flowChart.selectedNodeList.has(sceneVar.flowChart.draggingNode)) {
+								[
+									sceneVar.flowChart.flowChart.circumstanceNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList,
+									sceneVar.flowChart.flowChart.assignmentNodeList
+								].forEach(nodeList => {
+									sceneVar.flowChart.selectedNodeList.forEach(node => {
+										if (nodeList.includes(node)) {
+											nodeList.splice(nodeList.indexOf(node), 1);
+										}
+									});
+								});
+							} else {
+								[
+									sceneVar.flowChart.flowChart.circumstanceNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList,
+									sceneVar.flowChart.flowChart.assignmentNodeList
+								].forEach(nodeList => {
+									if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
+										nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
+									}
+								});
+							}
 						}
 					}
 				}

@@ -11,9 +11,9 @@ class FlowChartNode {
 	update(chart) {
 		if (this.draggable) {
 			let pos = this.getScreenPos(chart);
-			if (sceneVar.flowChart.draggingNode === this) {
+			if (sceneVar.flowChart.draggingNode === this || (sceneVar.flowChart.selectedNodeList.has(sceneVar.flowChart.draggingNode) && sceneVar.flowChart.selectedNodeList.has(this))) {
 				let startPos = sceneVar.flowChart.dragStartPos,
-					posBeforeDrag = sceneVar.flowChart.nodePosBeforeDrag;
+					posBeforeDrag = this.posBeforeDrag;
 				let deltaMousePos = [mouse.x - startPos[0], mouse.y - startPos[1]];
 				// delta 為二者之差，平移會抵消，所以只須做縮放
 				deltaMousePos = deltaMousePos.map(n => n / sceneVar.flowChart.scale);
@@ -25,8 +25,13 @@ class FlowChartNode {
 				}
 			} else if ((isHover(mouse, this.getTabScreenPos(pos)) || isHover(mouse, pos)) && mouse.down) {
 				sceneVar.flowChart.draggingNode = this;
-				sceneVar.flowChart.nodePosBeforeDrag = [...this.pos];
+				this.posBeforeDrag = [...this.pos];
 				sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
+				if (sceneVar.flowChart.selectedNodeList.has(this)) {
+					sceneVar.flowChart.selectedNodeList.forEach(node => {
+						node.posBeforeDrag = [...node.pos]
+					});
+				}
 			}
 		}
 	}
@@ -83,6 +88,7 @@ class FlowChartNode {
 				if (mouse.down) {
 					sceneVar.flowChart.connectStartData = { node: this, dotIndex: i };
 					sceneVar.flowChart.connectStartPos = dot;
+					mouse.down = false;
 				}
 				if (mouse.up && sceneVar.flowChart.connectStartData) {
 					sceneVar.flowChart.connectEndData = { node: this, dotIndex: i };
@@ -142,6 +148,7 @@ class StartNode extends FlowChartNode {
 		];
 	}
 	draw(ctx, chart) {
+		ctx.save();
 		let pos = this.getScreenPos(chart);
 		drawBox(ctx, {
 			pos,
@@ -160,6 +167,7 @@ class StartNode extends FlowChartNode {
 		this.drawDots(ctx, chart, dotsPos, [2]);
 		if (this.then) sceneVar.flowChart.connections.push([{ node: this, dotIndex: 2 }, { node: this.then, dotIndex: 0 }]);
 		sceneVar.flowChart.nodesDots.set(this, dotsPos);
+		ctx.restore();
 	}
 	connect(fromDot, toNode) {
 		if (fromDot === 2) {
@@ -316,12 +324,14 @@ class CircumstanceNode extends FlowChartNode {
 		];
 	}
 	draw(ctx, chart) {
+		ctx.save();
 		let pos = this.getScreenPos(chart);
 		const scale = sceneVar.flowChart.scale;
 		let padding = FlowChartNode.padding * scale;
 		let blockPadding = padding / 2;
 		let charSize = FlowChartNode.charSize * scale;
 		let reCalc = false;
+		if (sceneVar.flowChart.selectedNodeList.has(this)) { glowEffect(ctx, 'white', 10); }
 		drawBox(ctx, {
 			pos,
 			bgc: color.buttonBgc,
@@ -387,7 +397,7 @@ class CircumstanceNode extends FlowChartNode {
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) {
 				mouse.down = false;
-				if (mouse.click) {
+				if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
 					itemData.editFunction();
 					mouse.click = false;
 				}
@@ -416,6 +426,7 @@ class CircumstanceNode extends FlowChartNode {
 		} else {
 			this.update(chart);
 		}
+		ctx.restore();
 	}
 	connect(fromDot, toNode) {
 		if (fromDot == 1) {
@@ -465,12 +476,14 @@ class AssignmentNode extends FlowChartNode {
 		];
 	}
 	draw(ctx, chart) {
+		ctx.save();
 		let pos = this.getScreenPos(chart);
 		const scale = sceneVar.flowChart.scale;
 		let padding = FlowChartNode.padding * scale;
 		let blockPadding = padding / 2;
 		let charSize = FlowChartNode.charSize * scale;
 		let reCalc = false;
+		if (sceneVar.flowChart.selectedNodeList.has(this)) { glowEffect(ctx, 'white', 10); }
 		drawBox(ctx, {
 			pos,
 			bgc: color.buttonBgc,
@@ -536,7 +549,7 @@ class AssignmentNode extends FlowChartNode {
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) {
 				mouse.down = false;
-				if (mouse.click) {
+				if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
 					itemData.editFunction();
 					mouse.click = false;
 				}
@@ -558,6 +571,7 @@ class AssignmentNode extends FlowChartNode {
 		} else {
 			this.update(chart);
 		}
+		ctx.restore();
 	}
 	connect(fromDot, toNode) {
 		if (fromDot == 2) {
@@ -598,12 +612,14 @@ class DialogNode extends FlowChartNode {
 		];
 	}
 	draw(ctx, chart) {
+		ctx.save();
 		let pos = this.getScreenPos(chart);
 		let padding = FlowChartNode.padding * sceneVar.flowChart.scale;
 		let blockPadding = padding / 2;
 		let charSize = FlowChartNode.charSize * sceneVar.flowChart.scale;
 		let itemGap = DialogNode.itemGap * sceneVar.flowChart.scale;
 		let reCalc = false;
+		if (sceneVar.flowChart.selectedNodeList.has(this)) { glowEffect(ctx, 'white', 10); }
 		drawBox(ctx, {
 			pos,
 			bgc: color.buttonBgc,
@@ -634,7 +650,7 @@ class DialogNode extends FlowChartNode {
 		});
 		if (isHover(mouse, imagePos)) {
 			mouse.down = false;
-			if (mouse.click) {
+			if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
 				popup.search({ dict: project.imageDataDict, defaultValue: this.image, type: 'imageData' }, selected => {
 					if (selected !== null) {
 						this.image = selected.key;
@@ -656,7 +672,7 @@ class DialogNode extends FlowChartNode {
 		});
 		if (isHover(mouse, messagePos)) {
 			mouse.down = false;
-			if (mouse.click) {
+			if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
 				popup.prompt({ text: '請輸入對話內容：', defaultValue: this.message }, newMessage => {
 					if (newMessage !== null) {
 						this.message = newMessage;
@@ -682,7 +698,7 @@ class DialogNode extends FlowChartNode {
 			if (hovered) mouse.down = false;
 			if (i === this.appendWords.length) {
 				option.text = '[+] 獲取詞卡';
-				if (hovered && mouse.click) {
+				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
 					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
@@ -724,7 +740,7 @@ class DialogNode extends FlowChartNode {
 			if (hovered) mouse.down = false;
 			if (i === this.removeWords.length) {
 				option.text = '[+] 收回詞卡';
-				if (hovered && mouse.click) {
+				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
 					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
@@ -757,6 +773,7 @@ class DialogNode extends FlowChartNode {
 		} else {
 			this.update(chart);
 		}
+		ctx.restore();
 	}
 }
 class FlowChart {
@@ -862,6 +879,7 @@ class FlowChart {
 			node.draw(targetCtx, chart);
 		}
 		tempCtx.chart.lineWidth = 5 * sceneVar.flowChart.scale;
+		tempCtx.chart.strokeStyle = 'white';
 		for (let connection of sceneVar.flowChart.connections) {
 			let nodesDots1 = sceneVar.flowChart.nodesDots.get(connection[0].node),
 				nodesDots2 = sceneVar.flowChart.nodesDots.get(connection[1].node);
@@ -886,19 +904,124 @@ class FlowChart {
 		if (isHover(mouse, chart) && mouse.down && sceneVar.flowChart.draggingNode == undefined) {
 			sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 			sceneVar.flowChart.mouseSelecting = true;
+			sceneVar.flowChart.mouseSelectingWithShift = keyboard.Shift ? true : false;
 		}
-		if (mouse.up && sceneVar.flowChart.mouseSelecting) {
-			sceneVar.flowChart.mouseSelecting = false
-		};
 		if (sceneVar.flowChart.mouseSelecting) {
-			let mouseDownPos = sceneVar.flowChart.dragStartPos;
-			let selectRect = [mouseDownPos[0], mouseDownPos[1], mouse.x - mouseDownPos[0], mouse.y - mouseDownPos[1]];
+			let startPos = sceneVar.flowChart.dragStartPos;
+			let selectRectPoints = [startPos[0], startPos[1], mouse.x, mouse.y];
+			let selectRect = [0, 0, 0, 0];
+			[selectRect[0], selectRect[1]] = [Math.min(selectRectPoints[0], selectRectPoints[2]), Math.min(selectRectPoints[1], selectRectPoints[3])];
+			[selectRect[2], selectRect[3]] = [Math.max(selectRectPoints[0], selectRectPoints[2]) - selectRect[0], Math.max(selectRectPoints[1], selectRectPoints[3]) - selectRect[1]];
 			drawBox(tempCtx.chart, {
 				pos: selectRect,
-				bgc: color.wordBoxSAndO + '55',
-				border: color.wordBoxSAndO,
+				bgc: color.selectedNode + '55',
+				border: color.selectedNode,
 				borderWidth: 2,
 			});
+			if (mouse.up) {
+				sceneVar.flowChart.mouseSelecting = false;
+				if (sceneVar.flowChart.mouseSelectingWithShift || keyboard.Shift) {
+					nodeList
+						.map(node => [node.getScreenPos(chart), node])
+						.filter(posNodePair => {
+							let pos = posNodePair[0];
+							return selectRect[0] < pos[0] && selectRect[1] < pos[1] && pos[0] + pos[2] < selectRect[0] + selectRect[2] && pos[1] + pos[3] < selectRect[1] + selectRect[3];
+						})
+						.forEach(posNodePair => {
+							let node = posNodePair[1];
+							if (sceneVar.flowChart.selectedNodeList.has(node)) {
+								sceneVar.flowChart.selectedNodeList.delete(node);
+							} else if (!(node instanceof StartNode)) {
+								sceneVar.flowChart.selectedNodeList.add(node);
+							}
+						});
+				} else {
+					sceneVar.flowChart.selectedNodeList.clear();
+					nodeList
+						.map(node => [node.getScreenPos(chart), node])
+						.filter(posNodePair => {
+							let pos = posNodePair[0];
+							return selectRect[0] < pos[0] && selectRect[1] < pos[1] && pos[0] + pos[2] < selectRect[0] + selectRect[2] && pos[1] + pos[3] < selectRect[1] + selectRect[3];
+						})
+						.forEach(posNodePair => {
+							let node = posNodePair[1];
+							sceneVar.flowChart.selectedNodeList.add(node);
+						});
+				}
+			};
+		}
+		if (keyboard.Control) {
+			if (keyboard.c) {
+				if (sceneVar.flowChart.selectedNodeList !== undefined && sceneVar.flowChart.selectedNodeList.size > 0) {
+					let copyObj = [...sceneVar.flowChart.selectedNodeList];
+					copyObj = copyObj.map(node => {
+						let nodeExport = node.export();
+						['ifTrue', 'ifFalse', 'then'].forEach(arg => {
+							if (node[arg] !== undefined) {
+								if (copyObj.includes(node[arg])) {
+									nodeExport[arg] = copyObj.indexOf(node[arg]);
+								} else {
+									nodeExport[arg] = undefined;
+								}
+							}
+						});
+						nodeExport.type = (node instanceof CircumstanceNode) ? 'CircumstanceNode' :
+							(node instanceof AssignmentNode) ? 'AssignmentNode' :
+								(node instanceof DialogNode) ? 'DialogNode' : ''
+						return nodeExport;
+					});
+					navigator.clipboard.writeText(JSON.stringify(copyObj));
+					popup.alert('節點已複製！');
+				} else {
+					popup.alert('請先選取節點！');
+				}
+			} else if (keyboard.v) {
+				let typeMap = { 'CircumstanceNode': CircumstanceNode, 'AssignmentNode': AssignmentNode, 'DialogNode': DialogNode };
+				let nodeListMap = { 'CircumstanceNode': this.circumstanceNodeList, 'AssignmentNode': this.assignmentNodeList, 'DialogNode': this.dialogNodeList }
+				navigator.clipboard.readText().then(text => {
+					try {
+						let copyObj = JSON.parse(text);
+						if (copyObj instanceof Array) {
+							copyObj = copyObj.map(nodeData => {
+								if (nodeData.type in typeMap) {
+									let node = new (typeMap[nodeData.type])(nodeData);
+									nodeListMap[nodeData.type].push(node);
+									return node;
+								} else { return; }
+							});
+							copyObj.forEach(node => {
+								['ifTrue', 'ifFalse', 'then'].forEach(arg => {
+									if (node != undefined && node[arg] !== undefined) {
+										if (copyObj.length > node[arg]) {
+											node[arg] = copyObj[node[arg]];
+										} else {
+											node[arg] = undefined;
+										}
+									}
+								});
+							});
+
+							sceneVar.flowChart.selectedNodeList.clear();
+							copyObj.filter(node => node !== undefined).forEach(node => {
+								sceneVar.flowChart.selectedNodeList.add(node);
+							});
+						} else {
+							popup.alert('不支援的貼上格式！');
+						}
+					} catch {
+						popup.alert('不支援的貼上格式！');
+					}
+				});
+			} else if (keyboard.a) {
+				sceneVar.flowChart.selectedNodeList.clear();
+				[
+					...this.circumstanceNodeList,
+					...this.assignmentNodeList,
+					...this.dialogNodeList
+				].forEach(node => {
+					sceneVar.flowChart.selectedNodeList.add(node);
+				});
+			}
 		}
 
 		ctx.drawImage(tempCvs.chart, ...chart, ...chart);
