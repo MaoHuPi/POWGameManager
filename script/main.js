@@ -245,7 +245,7 @@ cvs.addEventListener('wheel', event => {
 	updateMousePosition(event);
 	event.preventDefault();
 	if (event.ctrlKey) {
-		mouse.deltaZoom += event.deltaY;
+		mouse.deltaZoom += keyboard.Control == true ? event.deltaY / 10 : event.deltaY;
 	} else if (event.shiftKey) {
 		mouse.deltaX += event.deltaY;
 	} else {
@@ -258,6 +258,20 @@ const keyboard = {};
 function updateKeyboard(event, setValue) {
 	let preventDefaultKeys = ['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'];
 	if (preventDefaultKeys.includes(event.key)) event.preventDefault();
+	if (event.ctrlKey && ['=', '+', '-', '_', '0'].includes(event.key)) {
+		event.preventDefault();
+		if (event.key == '0') {
+			sceneVar[({
+				scene_sheet: 'sheet',
+				scene_flowChart: 'flowChart',
+				scene_attribute: 'attribute'
+			}[currentScene.name])].scale = 1;
+		} else if (['=', '+'].includes(event.key)) {
+			mouse.deltaZoom = -10;
+		} else if (['-', '_'].includes(event.key)) {
+			mouse.deltaZoom = 10;
+		}
+	}
 	keyboard[event.key] = setValue;
 	keyboard.Control = event.ctrlKey;
 	keyboard.Shift = event.shiftKey;
