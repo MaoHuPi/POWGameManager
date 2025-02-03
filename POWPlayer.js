@@ -1,7 +1,7 @@
 /*
  * 2024 (c) MaoHuPi
  * POWGameManager/POWPlayer.js
- * v1.0.1
+ * v1.0.2
  * 用以載入POW遊戲劇情專案檔，並處理遊戲過程中的邏輯判斷與變數存儲
  */
 
