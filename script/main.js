@@ -1215,15 +1215,22 @@ async function scene_flowChart() {
 		stroke: 'white'
 	});
 
-	sceneVar.flowChart.flowChart.draw({ ctx, chart });
+	// 需先判斷 backButton 的點擊與否，方可在下方節點屬性框之點擊事件觸發之前，先進行跳轉。
+	// 否則在 backButton 與節點屬性框重時點擊之，其將在頁面跳轉後，又顯示出修改屬性之對話框。
 	let backButton = [chart[0] + 20, chart[1] + 20, 50, 50];
+	if (isHover(mouse, backButton) && mouse.click) {
+		updateEditingFlowChartToProject();
+		currentScene = scene_sheet;
+		mouse.click = false;
+	}
+
+	// flowChart 之事件觸發與內容繪製
+	sceneVar.flowChart.flowChart.draw({ ctx, chart });
+
+	// 於 flowChart 更新後繪製 backButton ，使其顯示於 flowChart 之上
 	ctx.save();
 	if (isHover(mouse, backButton)) {
 		glowEffect(ctx, 'white', 2);
-		if (mouse.click) {
-			updateEditingFlowChartToProject();
-			currentScene = scene_sheet;
-		}
 	}
 	drawBox(ctx, {
 		pos: backButton,
