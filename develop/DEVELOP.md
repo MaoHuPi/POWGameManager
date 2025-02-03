@@ -163,3 +163,7 @@
 3. 修正DialogNode圖片和對話內容選擇欄位的穿透點擊問題
 4. 修正FlowChartNode與其流程連接點的穿透拖曳問題
 5. 修正FlowChartNode的放開拖曳對於其它節點的穿透點擊問題
+
+## 2025/02/03 15:52 [MaoHuPi]
+
+1. POWPlayer新增XMLHttpRequest未成功載入的reject機制
