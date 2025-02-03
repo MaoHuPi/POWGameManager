@@ -43,6 +43,9 @@ class Popup {
 		this.input = ctx.canvas.ownerDocument.createElement('input');
 		this.input.id = 'popup-input';
 		this.input.type = 'text';
+		this.input.addEventListener('copy', event => { event.stopPropagation(); });
+		this.input.addEventListener('cut', event => { event.stopPropagation(); });
+		this.input.addEventListener('paste', event => { event.stopPropagation(); });
 		this.input.setAttribute('aria-autocomplete', 'false');
 		this.inputStyle({
 			position: 'absolute',

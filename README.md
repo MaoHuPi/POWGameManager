@@ -1,4 +1,4 @@
-![threadSBT-banner](image/logo_withoutBackground.png)
+![POWGameManager-banner](image/logo_withoutBackground.png)
 
 # POWGameManager
 

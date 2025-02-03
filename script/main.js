@@ -195,7 +195,8 @@ const color = {
 	buttonBgc: '#00000055',
 	wordBoxSAndO: '#ffc107',
 	wordBoxV: '#ff5722',
-	buttonWarning: '#03a9f4'
+	buttonWarning: '#03a9f4',
+	selectedNode: '#ffffff'
 };
 
 let currentScene = async () => { };
@@ -244,7 +245,7 @@ cvs.addEventListener('wheel', event => {
 	updateMousePosition(event);
 	event.preventDefault();
 	if (event.ctrlKey) {
-		mouse.deltaZoom += event.deltaY;
+		mouse.deltaZoom += keyboard.Control == true ? event.deltaY / 10 : event.deltaY;
 	} else if (event.shiftKey) {
 		mouse.deltaX += event.deltaY;
 	} else {
@@ -257,11 +258,35 @@ const keyboard = {};
 function updateKeyboard(event, setValue) {
 	let preventDefaultKeys = ['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown'];
 	if (preventDefaultKeys.includes(event.key)) event.preventDefault();
+	if (event.ctrlKey && ['=', '+', '-', '_', '0'].includes(event.key)) {
+		event.preventDefault();
+		if (event.key == '0') {
+			sceneVar[({
+				scene_sheet: 'sheet',
+				scene_flowChart: 'flowChart',
+				scene_attribute: 'attribute'
+			}[currentScene.name])].scale = 1;
+		} else if (['=', '+'].includes(event.key)) {
+			mouse.deltaZoom = -10;
+		} else if (['-', '_'].includes(event.key)) {
+			mouse.deltaZoom = 10;
+		}
+	}
 	keyboard[event.key] = setValue;
 	keyboard.Control = event.ctrlKey;
 	keyboard.Shift = event.shiftKey;
 	keyboard.Alt = event.altKey;
 }
+window.addEventListener('copy', () => {
+	keyboard.Copy = true;
+});
+window.addEventListener('cut', () => {
+	keyboard.Cut = true;
+});
+window.addEventListener('paste', event => {
+	let pasteContent = (event.clipboardData || window.clipboardData).getData("text");
+	keyboard.Paste = pasteContent;
+});
 window.addEventListener('keydown', event => { updateKeyboard(event, true) });
 window.addEventListener('keyup', event => { updateKeyboard(event, false) });
 
@@ -558,14 +583,14 @@ async function scene_sheet() {
 					dX = (dC % 1) * (cellWidth + cellGap),
 					i = Math.max(r, c),
 					rI = i == r ? rR : rC;
-				if (r == c && r == 0) {
+				if (r == c && r == 0) { // 左上角動詞欄位
 					option.border = color.wordBoxV;
 					option.text = project.partOfSpeech.v[sceneVar.sheet.vIndex];
 					if (sceneVar.global.gotoType == 'v') {
 						option.bgc = option.border;
 						option.fgc = 'black';
 					}
-				} else if (r == 0 || c == 0) {
+				} else if (r == 0 || c == 0) { // 左側主詞 與 上方受詞 欄位
 					targetCtx = tempCtx.gridTitle;
 					if (i == r) {
 						option.pos[1] += dY;
@@ -594,13 +619,23 @@ async function scene_sheet() {
 						if (cellHovered) sceneVar.sheet.hoveredCell = [false, false];
 						continue;
 					};
-				} else {
+				} else { // 內部格子
 					targetCtx = tempCtx.gridValue;
 					option.pos[1] += dY;
 					option.pos[0] += dX;
 					let cellHovered = isHover(mouse, gridValuePos) && isHover(mouse, cell);
 					if (rR == rC) {
 						option.bgc = '#313131';
+					} else {
+						try {
+							let caseNow = project.cases[sceneVar.sheet.vIndex][rR - 1][rC - 1];
+							if (caseNow && caseNow.dialog !== undefined) {
+								let nodeCount = ['circumstance', 'assignment', 'dialog'].map(key => Object.keys(caseNow[key]).length)
+								if (nodeCount.reduce((s, n) => s + n) > 0) {
+									option.text = nodeCount.join(',');
+								}
+							};
+						} catch (error) { }
 					}
 					if (cellHovered) {
 						sceneVar.sheet.hoveredCell = [rC - 1, rR - 1];
@@ -800,6 +835,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.nodesDots = new Map();
 		sceneVar.flowChart.imageListY = 0;
 		sceneVar.flowChart.emptyWarningY = 0;
+		sceneVar.flowChart.selectedNodeList = new Set();;
 	}
 	if (sceneChange) {
 		let cellEditing = sceneVar.sheet.cellEditing;
@@ -826,6 +862,7 @@ async function scene_flowChart() {
 				...project.cases[cellEditing[0]][cellEditing[1]][cellEditing[2]]
 			});
 		}
+		sceneVar.flowChart.selectedNodeList.clear();
 	}
 
 	/* warning refresh */
@@ -866,6 +903,7 @@ async function scene_flowChart() {
 		sceneVar.flowChart.chartY += relativeMouse[1] - relativeMouse[1] / lastScale * sceneVar.flowChart.scale;
 		sceneVar.flowChart.chartX -= mouse.deltaX / 2;
 		sceneVar.flowChart.chartY -= mouse.deltaY / 2;
+
 	}
 
 	drawBox(ctx, {
@@ -919,8 +957,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new CircumstanceNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new CircumstanceNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.circumstanceNodeList.push(node);
@@ -934,8 +973,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new AssignmentNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new AssignmentNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.assignmentNodeList.push(node);
@@ -949,8 +989,9 @@ async function scene_flowChart() {
 				mouseListener: {
 					type: 'down',
 					func: () => {
-						sceneVar.flowChart.nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
-						let node = new DialogNode({ anchor: sceneVar.flowChart.nodePosBeforeDrag });
+						let nodePosBeforeDrag = [mouse.x - (chart[0] + chart[2] / 2) - sceneVar.flowChart.chartX, mouse.y - (chart[1] + chart[3] / 2) - sceneVar.flowChart.chartY].map(n => n / sceneVar.flowChart.scale);
+						let node = new DialogNode({ anchor: nodePosBeforeDrag });
+						node.posBeforeDrag = nodePosBeforeDrag;
 						sceneVar.flowChart.draggingNode = node;
 						sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
 						sceneVar.flowChart.flowChart.dialogNodeList.push(node);
@@ -965,15 +1006,29 @@ async function scene_flowChart() {
 					type: 'up',
 					func: () => {
 						if (sceneVar.flowChart.draggingNode) {
-							[
-								sceneVar.flowChart.flowChart.circumstanceNodeList,
-								sceneVar.flowChart.flowChart.dialogNodeList,
-								sceneVar.flowChart.flowChart.assignmentNodeList
-							].forEach(nodeList => {
-								if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
-									nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
-								}
-							});
+							if (sceneVar.flowChart.selectedNodeList && sceneVar.flowChart.selectedNodeList.has(sceneVar.flowChart.draggingNode)) {
+								[
+									sceneVar.flowChart.flowChart.circumstanceNodeList,
+									sceneVar.flowChart.flowChart.assignmentNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList
+								].forEach(nodeList => {
+									sceneVar.flowChart.selectedNodeList.forEach(node => {
+										if (nodeList.includes(node)) {
+											nodeList.splice(nodeList.indexOf(node), 1);
+										}
+									});
+								});
+							} else {
+								[
+									sceneVar.flowChart.flowChart.circumstanceNodeList,
+									sceneVar.flowChart.flowChart.assignmentNodeList,
+									sceneVar.flowChart.flowChart.dialogNodeList
+								].forEach(nodeList => {
+									if (nodeList.includes(sceneVar.flowChart.draggingNode)) {
+										nodeList.splice(nodeList.indexOf(sceneVar.flowChart.draggingNode), 1);
+									}
+								});
+							}
 						}
 					}
 				}
@@ -1160,15 +1215,22 @@ async function scene_flowChart() {
 		stroke: 'white'
 	});
 
-	sceneVar.flowChart.flowChart.draw({ ctx, chart });
+	// 需先判斷 backButton 的點擊與否，方可在下方節點屬性框之點擊事件觸發之前，先進行跳轉。
+	// 否則在 backButton 與節點屬性框重時點擊之，其將在頁面跳轉後，又顯示出修改屬性之對話框。
 	let backButton = [chart[0] + 20, chart[1] + 20, 50, 50];
+	if (isHover(mouse, backButton) && mouse.click) {
+		updateEditingFlowChartToProject();
+		currentScene = scene_sheet;
+		mouse.click = false;
+	}
+
+	// flowChart 之事件觸發與內容繪製
+	sceneVar.flowChart.flowChart.draw({ ctx, chart });
+
+	// 於 flowChart 更新後繪製 backButton ，使其顯示於 flowChart 之上
 	ctx.save();
 	if (isHover(mouse, backButton)) {
 		glowEffect(ctx, 'white', 2);
-		if (mouse.click) {
-			updateEditingFlowChartToProject();
-			currentScene = scene_sheet;
-		}
 	}
 	drawBox(ctx, {
 		pos: backButton,
