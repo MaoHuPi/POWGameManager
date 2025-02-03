@@ -300,6 +300,13 @@ const POWPlayer = (() => {
 			});
 			return POSDict;
 		}
+		getVariableValue(variableName) {
+			if (variableName in this.#variableDict['var']) {
+				return this.#variableDict['var'][variableName];
+			} else {
+				throw Error('嘗試取得未定義的變數數值！');
+			}
+		}
 	}
 	return POWPlayer;
 })();

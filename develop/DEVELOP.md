@@ -155,3 +155,11 @@
 ## 2025/02/03 11:45 [MaoHuPi]
 
 1. 修正backButton與FlowChart節點重疊時的點擊事件穿透問題
+
+## 2025/02/03 14:03 [MaoHuPi]
+
+1. POWPlayer新增getVariableValue之變數數值取用功能
+2. 修正StartNode寬度問題
+3. 修正DialogNode圖片和對話內容選擇欄位的穿透點擊問題
+4. 修正FlowChartNode與其流程連接點的穿透拖曳問題
+5. 修正FlowChartNode的放開拖曳對於其它節點的穿透點擊問題

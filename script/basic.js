@@ -47,8 +47,8 @@ function calcSize({ sizeBOCS, text = '', charSize, padding, charFont }) {
 	ctx.save();
 	let reLines = [''];
 	let size = sizeBOCS.map(n => n === undefined ? undefined : n * charSize + padding * 2);
+	ctx.font = `${charSize}px ${charFont}`;
 	if (size[0] == undefined && size[1] == undefined) {
-		ctx.font = `${charSize}px ${charFont}`;
 		let textRect = ctx.measureText(text);
 		size = [textRect.width + padding * 2, textRect.height + padding * 2];
 		reLines = [text];

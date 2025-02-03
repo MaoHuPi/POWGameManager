@@ -23,7 +23,7 @@ class FlowChartNode {
 					sceneVar.flowChart.draggingNode = undefined;
 					this.calc();
 				}
-			} else if ((isHover(mouse, this.getTabScreenPos(pos)) || isHover(mouse, pos)) && mouse.down) {
+			} else if (isHover(mouse, chart) && (isHover(mouse, this.getTabScreenPos(pos)) || isHover(mouse, pos)) && mouse.down) {
 				sceneVar.flowChart.draggingNode = this;
 				this.posBeforeDrag = [...this.pos];
 				sceneVar.flowChart.dragStartPos = [mouse.x, mouse.y];
@@ -84,7 +84,7 @@ class FlowChartNode {
 		let distance = 20 * scale;
 		for (let i of activeDotsIndex) {
 			let dot = dotsScreenPos[i];
-			if (isHover(mouse, [dot[0] - distance, dot[1] - distance, distance * 2, distance * 2])) {
+			if (isHover(mouse, chart) && isHover(mouse, [dot[0] - distance, dot[1] - distance, distance * 2, distance * 2])) {
 				if (mouse.down) {
 					sceneVar.flowChart.connectStartData = { node: this, dotIndex: i };
 					sceneVar.flowChart.connectStartPos = dot;
@@ -397,7 +397,8 @@ class CircumstanceNode extends FlowChartNode {
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) {
 				mouse.down = false;
-				if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
+				if (mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
+					console.log(123);
 					itemData.editFunction();
 					mouse.click = false;
 				}
@@ -549,7 +550,7 @@ class AssignmentNode extends FlowChartNode {
 			let hovered = isHover(mouse, chart) && isHover(mouse, option.pos);
 			if (hovered) {
 				mouse.down = false;
-				if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
+				if (mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
 					itemData.editFunction();
 					mouse.click = false;
 				}
@@ -648,9 +649,9 @@ class DialogNode extends FlowChartNode {
 			border: 'white',
 			borderWidth: 2 * sceneVar.flowChart.scale
 		});
-		if (isHover(mouse, imagePos)) {
+		if (isHover(mouse, chart) && isHover(mouse, imagePos)) {
 			mouse.down = false;
-			if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
+			if (mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
 				popup.search({ dict: project.imageDataDict, defaultValue: this.image, type: 'imageData' }, selected => {
 					if (selected !== null) {
 						this.image = selected.key;
@@ -670,9 +671,9 @@ class DialogNode extends FlowChartNode {
 			border: 'white',
 			borderWidth: 2 * sceneVar.flowChart.scale
 		});
-		if (isHover(mouse, messagePos)) {
+		if (isHover(mouse, chart) && isHover(mouse, messagePos)) {
 			mouse.down = false;
-			if (mouse.click && !sceneVar.flowChart.mouseSelecting) {
+			if (mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
 				popup.prompt({ text: '請輸入對話內容：', defaultValue: this.message }, newMessage => {
 					if (newMessage !== null) {
 						this.message = newMessage;
@@ -698,7 +699,7 @@ class DialogNode extends FlowChartNode {
 			if (hovered) mouse.down = false;
 			if (i === this.appendWords.length) {
 				option.text = '[+] 獲取詞卡';
-				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting) {
+				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
 					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
@@ -740,7 +741,7 @@ class DialogNode extends FlowChartNode {
 			if (hovered) mouse.down = false;
 			if (i === this.removeWords.length) {
 				option.text = '[+] 收回詞卡';
-				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting) {
+				if (hovered && mouse.click && !sceneVar.flowChart.mouseSelecting && sceneVar.flowChart.draggingNode == undefined) {
 					sceneVar.flowChart.draggingNode = undefined;
 					mouse.click = false;
 					popup.search({ list: [...project.partOfSpeech.n, ...project.partOfSpeech.v], type: 'string' }, selected => {
